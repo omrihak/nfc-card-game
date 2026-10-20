@@ -7,20 +7,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.omrihak.nfccards.media.PlayerController
 
-/** Full-screen video, no controls. Tap anywhere to pause or resume; a big play symbol shows while paused. */
+/** Full-screen video, no controls. Tap anywhere to pause or resume. */
 @OptIn(UnstableApi::class)
 @Composable
 fun VideoScreen(player: PlayerController) {
@@ -45,8 +42,5 @@ fun VideoScreen(player: PlayerController) {
             update = { it.player = player.player },
             onRelease = { it.player = null },
         )
-        if (!player.playWhenReady) {
-            PlayPauseGlyph(showPause = false, modifier = Modifier.align(Alignment.Center).size(180.dp))
-        }
     }
 }
