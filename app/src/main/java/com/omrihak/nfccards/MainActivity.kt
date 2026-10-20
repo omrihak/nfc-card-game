@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.nfc.NfcAdapter
 import android.os.Bundle
+import android.widget.Toast
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -17,6 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.lifecycleScope
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -24,6 +26,7 @@ import com.omrihak.nfccards.nfc.NfcReader
 import com.omrihak.nfccards.ui.AudioScreen
 import com.omrihak.nfccards.ui.IdleScreen
 import com.omrihak.nfccards.ui.VideoScreen
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -39,6 +42,13 @@ class MainActivity : ComponentActivity() {
         nfcReader = NfcReader(this) { uri -> viewModel.onCardScanned(uri) }
 
         setContent { App(viewModel) }
+
+        // Debug builds only: say why a card failed (the toddler UI never does).
+        if (isDebuggable()) {
+            lifecycleScope.launch {
+                viewModel.debugMessages.collect { Toast.makeText(this@MainActivity, it, Toast.LENGTH_LONG).show() }
+            }
+        }
 
         // A tap while the app was closed launches it with the tag in the intent.
         if (savedInstanceState == null) handleLaunchIntent(intent)

@@ -18,7 +18,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -53,6 +56,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _problems = MutableStateFlow(0)
     val problems: StateFlow<Int> = _problems.asStateFlow()
 
+    /** Why a card failed, for developers. Only shown (as a toast) in debug builds. */
+    private val _debugMessages = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val debugMessages: SharedFlow<String> = _debugMessages.asSharedFlow()
+
     private var loadJob: Job? = null
     private var currentCard: String? = null
     private var currentMediaUrl: String? = null
@@ -66,6 +73,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun handleScan(uri: String?) {
         if (uri == null) {
             Log.w(TAG, "Unknown card: no NDEF URI")
+            _debugMessages.tryEmit("${ErrorKind.UNKNOWN_CARD}: no NDEF URI on the tag")
             problem()
             return
         }
@@ -104,9 +112,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: ContentException) {
                 Log.w(TAG, "Card $card failed: ${e.kind}: ${e.message}", e.cause ?: e)
+                _debugMessages.tryEmit("${e.kind}: ${e.message}")
                 resetToIdle()
             } catch (e: Exception) {
                 Log.e(TAG, "Card $card failed unexpectedly", e)
+                _debugMessages.tryEmit("UNEXPECTED: $e")
                 resetToIdle()
             }
         }
@@ -130,6 +140,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun onPlaybackError(error: PlaybackException) {
         Log.w(TAG, "Playback failed (${ErrorKind.UNSUPPORTED}): ${error.errorCodeName}", error)
+        _debugMessages.tryEmit("${ErrorKind.UNSUPPORTED}: playback failed (${error.errorCodeName})")
         // The cached file may be corrupt: drop it so the next tap downloads it again.
         currentMediaUrl?.let { resolver.evict(it) }
         resetToIdle()
