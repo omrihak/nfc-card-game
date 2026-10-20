@@ -56,6 +56,17 @@ rate-limit them; that is a risk mainly for the first download.
 - Lock the toddler in: open the app, then use Android **screen pinning** (Settings -> Security -> Pin windows, then pin from the recents screen). The app also hides the system bars and ignores Back.
 - The phone will sit on a charger forever: enable battery protection (Samsung: Battery -> Battery protection -> Maximum 85%).
 
+## Testing without NFC cards
+
+- **Simulate a tap over adb** (debug builds only), with the phone connected by USB and USB debugging on:
+  ```
+  adb shell am start -n com.omrihak.nfccards/.MainActivity -a android.intent.action.VIEW -d "https://drive.google.com/file/d/<ID>/view"
+  ```
+  Run it again with a different URL to simulate a different card. Watch what happens with
+  `adb logcat -s NfcReader ContentResolver MediaCache MainViewModel`.
+- **Test the NFC read itself** with a second Android phone running an NDEF tag-emulator app, or buy a couple of NTAG215 stickers (a few dollars)
+  and write the URL with an app such as NFC Tools.
+
 ## Build
 
 Open the folder in Android Studio (Ladybug or newer) and run on the phone, or `./gradlew assembleDebug`.

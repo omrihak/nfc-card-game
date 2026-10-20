@@ -1,6 +1,7 @@
 package com.omrihak.nfccards
 
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.nfc.NfcAdapter
 import android.os.Bundle
 import android.view.WindowManager
@@ -50,8 +51,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleLaunchIntent(intent: Intent) {
-        if (intent.action == NfcAdapter.ACTION_NDEF_DISCOVERED) {
-            viewModel.onCardScanned(NfcReader.uriFrom(intent))
+        when (intent.action) {
+            NfcAdapter.ACTION_NDEF_DISCOVERED ->
+                viewModel.onCardScanned(NfcReader.uriFrom(intent) ?: intent.dataString)
+            // Debug builds only: simulate a card tap without a tag, e.g.
+            // adb shell am start -n com.omrihak.nfccards/.MainActivity -a android.intent.action.VIEW -d "<card url>"
+            Intent.ACTION_VIEW ->
+                if (isDebuggable()) viewModel.onCardScanned(intent.dataString)
         }
     }
 
@@ -74,6 +80,8 @@ class MainActivity : ComponentActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemBars()
     }
+
+    private fun isDebuggable() = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
     private fun hideSystemBars() {
         WindowInsetsControllerCompat(window, window.decorView).apply {
