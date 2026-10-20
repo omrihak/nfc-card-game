@@ -74,7 +74,7 @@ class MediaCache(private val dir: File) {
     }
 
     private suspend fun fetchTo(url: String, dest: File, validate: ((File) -> Unit)?) {
-        val tmp = File.createTempFile("dl", ".part", dir)
+        val tmp = File.createTempFile("dl_", ".part", dir)
         try {
             val conn = URL(url).openConnection() as HttpURLConnection
             try {
