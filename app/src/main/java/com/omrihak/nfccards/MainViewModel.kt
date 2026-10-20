@@ -63,7 +63,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var loadJob: Job? = null
     private var currentCard: String? = null
     private var currentMediaUrl: String? = null
-    private var audioFinished = false
 
     /** [uri] is what the NFC reader found on the card; null if the card had no NDEF URI. Any thread. */
     fun onCardScanned(uri: String?) {
@@ -81,7 +80,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         val state = _state.value
         val alreadyActive = card == currentCard &&
-            (state is UiState.Loading || state is UiState.Video || (state is UiState.Audio && !audioFinished))
+            (state is UiState.Loading || state is UiState.Audio || state is UiState.Video)
         if (alreadyActive) {
             Log.d(TAG, "Same card scanned again while active; ignoring")
             return
@@ -91,7 +90,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         player.stop()
         currentCard = card
         currentMediaUrl = null
-        audioFinished = false
         _state.value = UiState.Loading
 
         loadJob = viewModelScope.launch {
@@ -123,18 +121,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun onPlaybackEnded() {
-        when (_state.value) {
-            is UiState.Video -> {
-                Log.i(TAG, "Video finished")
-                player.stop()
-                currentCard = null
-                _state.value = UiState.Idle
-            }
-            is UiState.Audio -> {
-                // Stay on the artwork; tapping the screen replays.
-                audioFinished = true
-            }
-            else -> Unit
+        if (_state.value is UiState.Audio || _state.value is UiState.Video) {
+            Log.i(TAG, "Playback finished")
+            player.stop()
+            currentCard = null
+            currentMediaUrl = null
+            _state.value = UiState.Idle
         }
     }
 

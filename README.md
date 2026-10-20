@@ -37,7 +37,7 @@ Tips
 ## Behaviour
 
 - Same card while it is playing: ignored. A different card: switches immediately.
-- Tap the screen: pause / resume. Audio plays once and stays on the artwork (tap to replay). Video returns to the idle screen when it ends.
+- Tap the screen: pause / resume. Audio and video play once, then the app returns to the idle screen.
 - Anything that goes wrong (unknown tag, no internet, bad JSON, missing/unsupported media...) returns to the idle screen with a small wordless wobble. Details are in Logcat (tags `NfcReader`, `ContentResolver`, `MediaCache`, `MainViewModel`).
 - Volume follows the phone's volume.
 
