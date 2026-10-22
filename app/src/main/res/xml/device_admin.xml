@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Device owner needs no listed policies for lock task, keyguard and status bar control. -->
+<device-admin>
+    <uses-policies />
+</device-admin>
