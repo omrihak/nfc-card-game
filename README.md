@@ -134,6 +134,9 @@ device owner are a new app build that calls `clearDeviceOwnerApp` or a factory r
 ## Build
 
 Open the folder in Android Studio (Ladybug or newer) and run on the phone, or `./gradlew assembleDebug`.
+Install a ready APK with `adb install -r tap-and-play.apk`. Debug builds are signed with the checked-in
+`app/debug.keystore`, so a build from any computer can update the installed app (important in kiosk mode,
+where the app can't be uninstalled).
 Pure-logic unit tests (`GoogleDriveUrlResolver`, `ContentMetadata`): `./gradlew testDebugUnitTest`.
 
 ## Layout
