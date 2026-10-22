@@ -3,6 +3,7 @@ package com.omrihak.nfccards
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.nfc.NfcAdapter
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import android.view.WindowManager
@@ -22,6 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.omrihak.nfccards.kiosk.Kiosk
 import com.omrihak.nfccards.nfc.NfcReader
 import com.omrihak.nfccards.ui.AudioScreen
 import com.omrihak.nfccards.ui.IdleScreen
@@ -32,14 +34,26 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
     private lateinit var nfcReader: NfcReader
+    private lateinit var kiosk: Kiosk
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Show over a (non-secure) lock screen and wake the screen when launched.
+        if (Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
+            )
+        }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
 
-        nfcReader = NfcReader(this) { uri -> viewModel.onCardScanned(uri) }
+        kiosk = Kiosk(this)
+        nfcReader = NfcReader(this) { uri -> runOnUiThread { onCard(uri) } }
 
         setContent { App(viewModel) }
 
@@ -63,16 +77,22 @@ class MainActivity : ComponentActivity() {
     private fun handleLaunchIntent(intent: Intent) {
         when (intent.action) {
             NfcAdapter.ACTION_NDEF_DISCOVERED ->
-                viewModel.onCardScanned(NfcReader.uriFrom(intent) ?: intent.dataString)
+                onCard(NfcReader.uriFrom(intent) ?: intent.dataString)
             // Debug builds only: simulate a card tap without a tag, e.g.
             // adb shell am start -n com.omrihak.nfccards/.MainActivity -a android.intent.action.VIEW -d "<card url>"
             Intent.ACTION_VIEW ->
-                if (isDebuggable()) viewModel.onCardScanned(intent.dataString)
+                if (isDebuggable()) onCard(intent.dataString)
         }
+    }
+
+    private fun onCard(uri: String?) {
+        if (uri != null && kiosk.onAdminCard(uri)) return
+        viewModel.onCardScanned(uri)
     }
 
     override fun onResume() {
         super.onResume()
+        kiosk.enter()
         nfcReader.start()
     }
 

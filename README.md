@@ -53,8 +53,41 @@ rate-limit them; that is a risk mainly for the first download.
 
 - Settings -> NFC: on. (Samsung: also check "Contactless payments" doesn't grab taps.) The NFC antenna is behind the phone, near the camera; put the card flat against the back.
 - Screen timeout is handled by the app (screen stays on while it is open).
-- Lock the toddler in: open the app, then use Android **screen pinning** (Settings -> Security -> Pin windows, then pin from the recents screen). The app also hides the system bars and ignores Back.
+- Lock the toddler in: see *Kiosk mode* below. The app always hides the system bars and ignores Back.
 - The phone will sit on a charger forever: enable battery protection (Samsung: Battery -> Battery protection -> Maximum 85%).
+
+## Kiosk mode (the app is the only thing on the phone)
+
+The app can be the phone's home screen (launcher), so it starts on boot and Home always comes back to it.
+Pick one level:
+
+**Simple: launcher only.** Press Home, choose *Tap and Play*, *Always* (or Settings -> Apps -> Default apps -> Home app).
+Set Settings -> Security -> Screen lock -> **None**, so the phone boots and wakes straight into the app
+(the app also shows over a swipe lock screen). A determined toddler can still pull down the notification shade
+or open recents, so combine it with **screen pinning** (Settings -> Security -> Pin windows, then pin from recents).
+
+**Full: device owner.** The app becomes the permanent home screen, runs in lock task mode (no home, recents,
+notification shade or power menu), the lock screen is disabled and the screen stays on while charging.
+Survives reboots. Setup, once, over adb:
+
+1. Remove every account from the phone (Settings -> Accounts), or factory reset it and skip sign-in.
+   Android refuses a device owner while accounts exist.
+2. Install the app, then:
+   ```
+   adb shell dpm set-device-owner com.omrihak.nfccards/.kiosk.AdminReceiver
+   ```
+3. Open the app. It locks itself in.
+
+Getting out uses **admin cards**: write one of these as a URI record on a spare sticker (NFC Tools: *Custom URL/URI*)
+and keep it away from the toddler.
+
+| Card URI                 | Does                                                                     |
+|--------------------------|--------------------------------------------------------------------------|
+| `tapandplay://settings`  | Leaves kiosk and opens Settings. Press Home (or open the app) to lock again. |
+| `tapandplay://release`   | Gives up device owner for good and opens Settings, so the app can be uninstalled. |
+
+Make the admin cards *before* enabling device owner: without a release card, the only other ways out of
+device owner are a new app build that calls `clearDeviceOwnerApp` or a factory reset.
 
 ## Testing without NFC cards
 
@@ -62,7 +95,7 @@ rate-limit them; that is a risk mainly for the first download.
   ```
   adb shell am start -n com.omrihak.nfccards/.MainActivity -a android.intent.action.VIEW -d "https://drive.google.com/file/d/<ID>/view"
   ```
-  Run it again with a different URL to simulate a different card. Watch what happens with
+  Run it again with a different URL to simulate a different card (admin card URIs work too). Watch what happens with
   `adb logcat -s NfcReader ContentResolver MediaCache MainViewModel`.
 - **Test the NFC read itself** with a second Android phone running an NDEF tag-emulator app, or buy a couple of NTAG215 stickers (a few dollars)
   and write the URL with an app such as NFC Tools.
@@ -82,5 +115,6 @@ content/ContentResolver  card URL -> metadata -> local files (offline-first)
 media/MediaCache         download-to-disk cache, atomic writes
 media/PlayerController   the one ExoPlayer (Media3), audio and video
 ui/                      IdleScreen, AudioScreen, VideoScreen
+kiosk/Kiosk              device-owner lock task, admin cards
 MainViewModel            card URI in, UI state out; NFC knows nothing about media
 ```
