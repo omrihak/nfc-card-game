@@ -34,6 +34,37 @@ Tips
   needs a *different* file (new link).
 - Tap each card once while online; from then on it works offline and starts instantly.
 
+## Card manager (web page)
+
+`manager/` is a small web page that does steps 1-2 above for you, and on Android also step 3.
+Pick a song (+ optional picture) or a video and give the card a name. The page then:
+
+1. creates `Tap and Play/<name>/` in your Google Drive and uploads the files into it,
+2. sets them to *Anyone with the link -> Viewer*,
+3. writes `content.json` there (plus `name`/`createdAt`, which the player ignores),
+4. adds the card to `Tap and Play/cards.json`, the list the page shows.
+
+Each card in the list has **Write to sticker** (Chrome on Android with NFC, via Web NFC: hold an
+NTAG215 to the back of the phone), **Copy link** (the `content.json` link, for any NFC app) and **Folder**.
+
+**Hosting.** Settings -> Pages -> *Deploy from a branch*, default branch, `/ (root)`. The page is then at
+`https://omrihak.github.io/nfc-card-game/manager/`. To try it locally: `cd manager && python3 -m http.server 8000`
+and open `http://localhost:8000`.
+
+**Google Drive access.** The page signs you in with your own Google account (OAuth, Google Identity
+Services in the browser). One-time setup in [Google Cloud Console](https://console.cloud.google.com/):
+
+1. Create a project and enable the **Google Drive API**.
+2. *OAuth consent screen*: External, keep it in **Testing**, add your Gmail as a test user.
+3. *Credentials -> Create OAuth client ID -> Web application*. Authorized JavaScript origins:
+   `https://omrihak.github.io` and `http://localhost:8000`. No redirect URI is needed.
+4. Put the client ID in `manager/config.js`. It is public by design; there is no client secret.
+
+The only scope is `drive.file`: the page can see and change just the files and folders it created, not the
+rest of your Drive, and Google needs no app review for it. Sign-in lasts about an hour; after that the page
+asks again. A service account is not used: its key cannot be kept secret in a web page, and it has no Drive
+storage of its own on a personal Gmail account.
+
 ## Behaviour
 
 - Same card while it is playing: ignored. A different card: switches immediately.
@@ -83,4 +114,5 @@ media/MediaCache         download-to-disk cache, atomic writes
 media/PlayerController   the one ExoPlayer (Media3), audio and video
 ui/                      IdleScreen, AudioScreen, VideoScreen
 MainViewModel            card URI in, UI state out; NFC knows nothing about media
+manager/                 web page for making cards in Google Drive (not part of the app)
 ```
