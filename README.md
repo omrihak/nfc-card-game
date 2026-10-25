@@ -47,6 +47,15 @@ Pick a song (+ optional picture) or a video and give the card a name. The page t
 Each card in the list has **Write to sticker** (Chrome on Android with NFC, via Web NFC: hold an
 NTAG215 to the back of the phone), **Copy link** (the `content.json` link, for any NFC app) and **Folder**.
 
+**Printing cards.** Tick cards in the list and press **Make PDF**. Each A4 sheet holds 6 cards (85 x 85 mm, 2 x 3)
+and is two pages: the fronts (the card's picture, or a coloured card with the name if it has none), then the backs
+(a QR code of the `content.json` link, with a 14 mm white border for fingers, and the name). Print double-sided,
+**flip on long edge**, at **Actual size / 100%**, then cut along the crop marks. The back page is mirrored, so each
+back lands behind its own front; pictures bleed 3 mm past the cut so small errors don't show white edges. If your
+printer shifts the second side, measure the shift on one test sheet and enter it under *Back side doesn't line up?*
+(remembered in the browser). Card size and margins are constants at the top of `manager/print.js`. The PDF is
+written directly (no PDF library); QR codes come from `manager/vendor/qrcode.js` (qrcode-generator 1.4.4, MIT).
+
 **Hosting.** Settings -> Pages -> *Deploy from a branch*, default branch, `/ (root)`. The page is then at
 `https://omrihak.github.io/nfc-card-game/manager/`. To try it locally: `cd manager && python3 -m http.server 8000`
 and open `http://localhost:8000`.

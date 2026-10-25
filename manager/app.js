@@ -20,6 +20,7 @@ let tokenClient = null;
 let tokenExpiresAt = 0;
 let pendingToken = null; // { resolve, reject } while the Google popup is open
 let rootFolder = null;
+const selected = new Map(); // contentUrl -> card, in the order they were ticked (= print order)
 
 // Google Identity Services script loaded.
 function onGoogleLoaded() {
@@ -74,6 +75,7 @@ $("signout").addEventListener("click", () => {
   Drive.setToken(null);
   tokenExpiresAt = 0;
   rootFolder = null;
+  selected.clear();
   $("cards").replaceChildren();
   showSignedIn(false);
 });
@@ -202,6 +204,13 @@ async function refreshCards() {
         const row = template.content.firstElementChild.cloneNode(true);
         row.querySelector(".row-name").textContent = card.name;
         row.querySelector(".row-type").textContent = card.type === "video" ? "video" : "song";
+        const select = row.querySelector(".row-select");
+        select.checked = selected.has(card.contentUrl);
+        select.addEventListener("change", () => {
+          if (select.checked) selected.set(card.contentUrl, card);
+          else selected.delete(card.contentUrl);
+          updatePrintStatus();
+        });
         row.querySelector(".open-folder").href = Drive.folderLink(card.folderId);
         row.querySelector(".copy-link").addEventListener("click", (e) => copyLink(card, e.currentTarget));
         const write = row.querySelector(".write-nfc");
@@ -213,6 +222,10 @@ async function refreshCards() {
         return row;
       }),
   );
+  const urls = new Set(cards.map((card) => card.contentUrl));
+  for (const url of selected.keys()) if (!urls.has(url)) selected.delete(url);
+  updatePrintStatus();
+  $("print-panel").hidden = cards.length === 0;
   $("no-cards").hidden = cards.length > 0;
   $("nfc-hint").hidden = nfcSupported() || cards.length === 0;
 }
@@ -248,6 +261,110 @@ async function copyLink(card, button) {
     window.prompt("Card link:", card.contentUrl);
   }
   setTimeout(() => (button.textContent = label), 2000);
+}
+
+// ---- Printing ----
+
+const OFFSET_KEY = "printBackOffset";
+
+function updatePrintStatus() {
+  const count = selected.size;
+  const sheets = Math.ceil(count / CardPrint.PER_SHEET);
+  $("print").disabled = count === 0;
+  $("print-status").textContent =
+    count === 0
+      ? "No cards selected."
+      : `${count} card${count === 1 ? "" : "s"}: ${sheets} sheet${sheets === 1 ? "" : "s"}, ${sheets * 2} pages.`;
+}
+
+function backOffset() {
+  const read = (id) => Number($(id).value) || 0;
+  return { x: read("offset-x"), y: read("offset-y") };
+}
+
+try {
+  const saved = JSON.parse(localStorage.getItem(OFFSET_KEY));
+  if (saved) {
+    $("offset-x").value = saved.x || 0;
+    $("offset-y").value = saved.y || 0;
+  }
+} catch (e) {
+  // No storage: start from no offset.
+}
+["offset-x", "offset-y"].forEach((id) =>
+  $(id).addEventListener("change", () => {
+    try {
+      localStorage.setItem(OFFSET_KEY, JSON.stringify(backOffset()));
+    } catch (e) {
+      // Not remembered, still used for this PDF.
+    }
+  }),
+);
+
+$("print").addEventListener("click", () => {
+  hideError();
+  const cards = [...selected.values()];
+  const button = $("print");
+  button.disabled = true;
+  ensureToken()
+    .then(() => printCards(cards))
+    .catch((e) => {
+      $("print-status").textContent = "";
+      showError(e);
+    })
+    .finally(() => (button.disabled = selected.size === 0));
+});
+
+async function printCards(cards) {
+  const status = $("print-status");
+  const missing = [];
+  const prepared = [];
+  for (const [i, card] of cards.entries()) {
+    status.textContent = `Loading pictures… ${i + 1}/${cards.length}`;
+    let image = null;
+    try {
+      image = await loadCardImage(card);
+    } catch (e) {
+      // Still printable: the front gets the coloured placeholder instead.
+      console.warn(e);
+      missing.push(card.name);
+    }
+    prepared.push({ ...card, image });
+  }
+  const pdf = await CardPrint.makePdf(prepared, backOffset(), (fraction) => {
+    status.textContent = `Making PDF… ${Math.round(fraction * 100)}%`;
+  });
+
+  const url = URL.createObjectURL(pdf);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "tap-and-play-cards.pdf";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+
+  status.textContent =
+    "PDF downloaded." + (missing.length ? ` Couldn't load the picture for: ${missing.join(", ")}.` : "");
+}
+
+/** The card's picture from its content.json, or null if it has none (videos). */
+async function loadCardImage(card) {
+  const contentId = Drive.idFromLink(card.contentUrl);
+  if (!contentId) throw new Error(`Bad card link: ${card.contentUrl}`);
+  const content = JSON.parse(await Drive.readText(contentId));
+  const imageId = content.image && Drive.idFromLink(content.image);
+  if (!imageId) return null;
+  const blob = await Drive.readBlob(imageId);
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return img;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 function setBusy(busy) {

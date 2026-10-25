@@ -113,12 +113,22 @@ const Drive = (() => {
     return (await request(`${API}/files/${fileId}?alt=media`)).text();
   }
 
+  async function readBlob(fileId) {
+    return (await request(`${API}/files/${fileId}?alt=media`)).blob();
+  }
+
   async function overwriteText(fileId, text, type = "application/json") {
     return json(`${UPLOAD}/files/${fileId}?uploadType=media&fields=id`, {
       method: "PATCH",
       headers: { "Content-Type": type },
       body: text,
     });
+  }
+
+  /** File id from a share link (or a ?id= download link), or null. */
+  function idFromLink(link) {
+    const match = /\/d\/([\w-]+)/.exec(link) || /[?&]id=([\w-]+)/.exec(link);
+    return match ? match[1] : null;
   }
 
   function shareLink(fileId) {
@@ -130,7 +140,7 @@ const Drive = (() => {
   }
 
   return {
-    setToken, token, find, createFolder, findOrCreateFolder, upload, makePublic, readText, overwriteText,
-    shareLink, folderLink,
+    setToken, token, find, createFolder, findOrCreateFolder, upload, makePublic, readText, readBlob,
+    overwriteText, idFromLink, shareLink, folderLink,
   };
 })();

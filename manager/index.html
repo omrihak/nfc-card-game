@@ -59,6 +59,28 @@
       </p>
       <ul id="cards"></ul>
       <p id="no-cards" class="hint" hidden>No cards yet.</p>
+
+      <div id="print-panel" hidden>
+        <h3>Print cards</h3>
+        <p class="hint">
+          Tick the cards to print, 6 per A4 sheet. The PDF has two pages per sheet: pictures, then QR codes.
+          Print it double-sided, <strong>flip on long edge</strong>, at <strong>Actual size / 100%</strong>
+          (not "Fit to page"). Cut along the marks.
+        </p>
+        <details>
+          <summary>Back side doesn't line up?</summary>
+          <p class="hint">
+            Some printers shift the second side a little. Print one sheet, hold it up to a light and measure how far
+            each QR code should move, looking at the QR side. Enter that here (negative for left / up); it is remembered.
+          </p>
+          <label class="inline">Move right (mm) <input id="offset-x" type="number" step="0.5" value="0"></label>
+          <label class="inline">Move down (mm) <input id="offset-y" type="number" step="0.5" value="0"></label>
+        </details>
+        <div class="print-actions">
+          <button id="print" type="button" disabled>Make PDF</button>
+          <span id="print-status" class="hint">No cards selected.</span>
+        </div>
+      </div>
     </section>
 
     <p id="signed-out" class="hint">Sign in to add cards. Files go to a "Tap and Play" folder in your Google Drive.</p>
@@ -66,10 +88,11 @@
 
   <template id="card-row">
     <li>
-      <div class="row-main">
+      <label class="row-main">
+        <input type="checkbox" class="row-select">
         <strong class="row-name"></strong>
         <span class="row-type"></span>
-      </div>
+      </label>
       <div class="row-actions">
         <button type="button" class="write-nfc">Write to sticker</button>
         <button type="button" class="copy-link secondary">Copy link</button>
@@ -80,6 +103,8 @@
 
   <script src="config.js"></script>
   <script src="drive.js"></script>
+  <script src="vendor/qrcode.js"></script>
+  <script src="print.js"></script>
   <script src="app.js"></script>
   <script src="https://accounts.google.com/gsi/client" async onload="onGoogleLoaded()"></script>
 </body>
