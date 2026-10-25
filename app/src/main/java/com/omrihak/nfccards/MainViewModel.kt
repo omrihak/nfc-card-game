@@ -123,11 +123,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun onPlaybackEnded() {
         if (_state.value is UiState.Audio || _state.value is UiState.Video) {
             Log.i(TAG, "Playback finished")
-            player.stop()
-            currentCard = null
-            currentMediaUrl = null
-            _state.value = UiState.Idle
+            stop()
         }
+    }
+
+    /** Long-press: stop whatever is playing and go back to the idle screen. */
+    fun stop() {
+        loadJob?.cancel()
+        player.stop()
+        currentCard = null
+        currentMediaUrl = null
+        _state.value = UiState.Idle
     }
 
     private fun onPlaybackError(error: PlaybackException) {
