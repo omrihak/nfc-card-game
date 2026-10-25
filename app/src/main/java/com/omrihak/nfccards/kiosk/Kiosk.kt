@@ -1,5 +1,6 @@
 package com.omrihak.nfccards.kiosk
 
+import android.Manifest
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.admin.DeviceAdminReceiver
@@ -44,6 +45,13 @@ class Kiosk(private val activity: Activity) {
                 addCategory(Intent.CATEGORY_DEFAULT)
             },
             ComponentName(activity, activity::class.java),
+        )
+        // For QR scanning, without a permission dialog.
+        dpm.setPermissionGrantState(
+            admin,
+            activity.packageName,
+            Manifest.permission.CAMERA,
+            DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED,
         )
         dpm.setKeyguardDisabled(admin, true)
         dpm.setStatusBarDisabled(admin, true)

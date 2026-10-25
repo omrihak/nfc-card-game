@@ -1,15 +1,19 @@
 package com.omrihak.nfccards
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ApplicationInfo
 import android.nfc.NfcAdapter
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -31,8 +35,10 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.omrihak.nfccards.kiosk.Kiosk
 import com.omrihak.nfccards.nfc.NfcReader
+import com.omrihak.nfccards.qr.QrScanner
 import com.omrihak.nfccards.ui.AudioScreen
 import com.omrihak.nfccards.ui.BatteryIndicator
+import com.omrihak.nfccards.ui.CameraBubble
 import com.omrihak.nfccards.ui.IdleScreen
 import com.omrihak.nfccards.ui.VideoScreen
 import kotlinx.coroutines.launch
@@ -42,6 +48,12 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
     private lateinit var nfcReader: NfcReader
     private lateinit var kiosk: Kiosk
+    private lateinit var qrScanner: QrScanner
+    private var askedForCamera = false
+
+    private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) qrScanner.start() else Log.w(TAG, "Camera permission denied; QR scanning off")
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,8 +73,9 @@ class MainActivity : ComponentActivity() {
 
         kiosk = Kiosk(this)
         nfcReader = NfcReader(this) { uri -> runOnUiThread { onCard(uri) } }
+        qrScanner = QrScanner(this) { text -> onCard(text) }
 
-        setContent { App(viewModel) }
+        setContent { App(viewModel, qrScanner) }
 
         // Debug builds only: say why a card failed (the toddler UI never does).
         if (isDebuggable()) {
@@ -101,6 +114,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         kiosk.enter()
         nfcReader.start()
+        startQrScanner()
     }
 
     override fun onPause() {
@@ -113,12 +127,32 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
+    override fun onDestroy() {
+        qrScanner.release()
+        super.onDestroy()
+    }
+
+    /** In kiosk mode the permission is granted by [Kiosk.enter]; otherwise ask once. */
+    private fun startQrScanner() {
+        when {
+            checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED -> qrScanner.start()
+            !askedForCamera -> {
+                askedForCamera = true
+                cameraPermission.launch(Manifest.permission.CAMERA)
+            }
+        }
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemBars()
     }
 
     private fun isDebuggable() = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+
+    private companion object {
+        const val TAG = "MainActivity"
+    }
 
     private fun hideSystemBars() {
         WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -129,7 +163,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun App(viewModel: MainViewModel) {
+private fun App(viewModel: MainViewModel, qrScanner: QrScanner) {
     val state by viewModel.state.collectAsState()
     val problems by viewModel.problems.collectAsState()
 
@@ -140,6 +174,15 @@ private fun App(viewModel: MainViewModel) {
             UiState.Idle, UiState.Loading -> IdleScreen(busy = s == UiState.Loading, problems = problems)
             is UiState.Audio -> AudioScreen(artwork = s.artwork, player = viewModel.player, onStop = viewModel::stop)
             UiState.Video -> VideoScreen(player = viewModel.player, onStop = viewModel::stop)
+        }
+        if (qrScanner.isRunning) {
+            CameraBubble(
+                qrScanner.previewView,
+                Modifier
+                    .align(Alignment.TopStart)
+                    .windowInsetsPadding(WindowInsets.displayCutout)
+                    .padding(8.dp),
+            )
         }
         BatteryIndicator(
             Modifier
