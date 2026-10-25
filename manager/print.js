@@ -6,8 +6,9 @@
  * flipping on the long edge, at actual size. The back page is mirrored left-right so that every
  * back lands behind its own front, and the grid is centred on the page so that the mirror is exact.
  *
- * Fronts bleed into the gap between cards, so a small cutting or duplex error never shows a white
- * edge. Crop marks in the margin (fronts only) show where to cut.
+ * Cards are separated by a white gap. Crop marks in the margin (fronts only) point at the middle of
+ * each gap and at the same distance outside the outer cards: cut there and every card gets an even
+ * white border, which also hides small cutting or duplex errors.
  *
  * The PDF is written by hand (images are the canvas's JPEG bytes, which PDF embeds as is), so
  * sizes are exact millimetres and no PDF library is needed. QR codes come from vendor/qrcode.js.
@@ -20,10 +21,9 @@ const CardPrint = (() => {
   const PER_SHEET = COLS * ROWS;
   const CARD_W = 85; // mm
   const CARD_H = 85;
-  const GAP = 6; // between cards; fronts bleed half of it on every side
-  const BLEED = GAP / 2;
+  const GAP = 6; // white space between cards; the cut goes through its middle
   const FINGER_MARGIN = 14; // white border around the QR code, so fingers holding the card don't cover it
-  const MARK_OFFSET = BLEED + 1; // crop marks start this far from the card edge...
+  const MARK_OFFSET = 1; // crop marks start this far outside the outer cut lines...
   const MARK_LEN = 5; // ...and are this long
   const DPI = 300;
   const PT_PER_MM = 72 / 25.4;
@@ -63,7 +63,7 @@ const CardPrint = (() => {
         const f = slotPosition(slot);
         front.images.push({
           jpeg: await canvasToJpeg(drawFront(card)),
-          x: f.x - BLEED, y: f.y - BLEED, w: CARD_W + 2 * BLEED, h: CARD_H + 2 * BLEED,
+          x: f.x, y: f.y, w: CARD_W, h: CARD_H,
         });
         const b = backPosition(slot, offset);
         back.images.push({ jpeg: await canvasToJpeg(drawBack(card)), x: b.x, y: b.y, w: CARD_W, h: CARD_H });
@@ -75,14 +75,15 @@ const CardPrint = (() => {
   }
 
   function cropMarks() {
+    // Cut lines: half a gap before each card, and half a gap after the last one.
     const xs = [];
     const ys = [];
-    for (let c = 0; c < COLS; c++) xs.push(GRID_X + c * (CARD_W + GAP), GRID_X + c * (CARD_W + GAP) + CARD_W);
-    for (let r = 0; r < ROWS; r++) ys.push(GRID_Y + r * (CARD_H + GAP), GRID_Y + r * (CARD_H + GAP) + CARD_H);
-    const top = GRID_Y;
-    const bottom = PAGE_H - GRID_Y;
-    const left = GRID_X;
-    const right = PAGE_W - GRID_X;
+    for (let c = 0; c <= COLS; c++) xs.push(GRID_X - GAP / 2 + c * (CARD_W + GAP));
+    for (let r = 0; r <= ROWS; r++) ys.push(GRID_Y - GAP / 2 + r * (CARD_H + GAP));
+    const top = ys[0];
+    const bottom = ys[ROWS];
+    const left = xs[0];
+    const right = xs[COLS];
     const lines = [];
     for (const x of xs) {
       lines.push([x, top - MARK_OFFSET - MARK_LEN, x, top - MARK_OFFSET]);
@@ -106,9 +107,9 @@ const CardPrint = (() => {
     return canvas;
   }
 
-  /** Picture, cropped to fill the card plus bleed. Without one, a coloured card with the name. */
+  /** Picture, cropped to fill the card. Without one, a coloured card with the name. */
   function drawFront(card) {
-    const canvas = newCanvas(CARD_W + 2 * BLEED, CARD_H + 2 * BLEED);
+    const canvas = newCanvas(CARD_W, CARD_H);
     const ctx = canvas.getContext("2d");
     const { width: w, height: h } = canvas;
     if (card.image) {
@@ -139,7 +140,7 @@ const CardPrint = (() => {
       ctx.font = `${symbol * 1.2}px system-ui, sans-serif`;
       ctx.fillText("♪", cx, h * 0.42);
     }
-    drawName(ctx, card.name, cx, h * 0.75, w - px(2 * BLEED + 10), px(9));
+    drawName(ctx, card.name, cx, h * 0.75, w - px(10), px(9));
     return canvas;
   }
 
