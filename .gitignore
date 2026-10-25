@@ -5,3 +5,9 @@ local.properties
 *.iml
 .DS_Store
 captures/
+
+# Google OAuth secrets for the content manager (keep outside the repo; never commit)
+client_secret*.json
+credentials*.json
+token*.json
+.env
