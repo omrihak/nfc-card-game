@@ -51,7 +51,7 @@ NTAG215 to the back of the phone), **Copy link** (the `content.json` link, for a
 Its stickers and printed cards then stop working, except on phones that have already played it (they keep it cached).
 
 **Printing cards.** Tick cards in the list and press **Make PDF**. Each A4 sheet holds 6 cards (85 x 85 mm, 2 x 3)
-and is two pages: the fronts (the card's picture, or a coloured card with the name if it has none), then the backs
+and is two pages: the fronts (the card's picture, fitted whole inside the square on white, or a coloured card with the name if it has none), then the backs
 (a QR code of the `content.json` link, with a 14 mm white border for fingers, and the name). Print double-sided,
 **flip on long edge**, at **Actual size / 100%**. Cards are 6 mm apart; the crop marks point at the middle of each
 gap, so cutting there leaves every card a 3 mm white border. The back page is mirrored, so each back lands behind

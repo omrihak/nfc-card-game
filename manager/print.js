@@ -107,14 +107,19 @@ const CardPrint = (() => {
     return canvas;
   }
 
-  /** Picture, cropped to fill the card. Without one, a coloured card with the name. */
+  /**
+   * Picture, scaled to fit inside the card without cropping and centred, on white (so a picture that
+   * isn't square gets white bands). Without one, a coloured card with the name.
+   */
   function drawFront(card) {
     const canvas = newCanvas(CARD_W, CARD_H);
     const ctx = canvas.getContext("2d");
     const { width: w, height: h } = canvas;
     if (card.image) {
       const img = card.image;
-      const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+      ctx.fillStyle = "#fff"; // JPEG has no transparency: unpainted pixels would come out black
+      ctx.fillRect(0, 0, w, h);
+      const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight);
       const dw = img.naturalWidth * scale;
       const dh = img.naturalHeight * scale;
       ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
