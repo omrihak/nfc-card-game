@@ -45,6 +45,12 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3")
     implementation("androidx.media3:media3-ui:$media3")
 
+    val camerax = "1.4.1"
+    implementation("androidx.camera:camera-camera2:$camerax")
+    implementation("androidx.camera:camera-lifecycle:$camerax")
+    // Pure-Java QR decoding: no Google Play Services needed on the phone.
+    implementation("com.google.zxing:core:3.5.3")
+
     testImplementation("junit:junit:4.13.2")
     // Android's org.json is stubbed in JVM unit tests; use the real implementation there.
     testImplementation("org.json:json:20240303")

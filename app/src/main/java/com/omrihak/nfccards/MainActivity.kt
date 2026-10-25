@@ -1,5 +1,6 @@
 package com.omrihak.nfccards
 
+import android.Manifest
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.nfc.NfcAdapter
@@ -9,6 +10,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -23,6 +25,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.omrihak.nfccards.nfc.NfcReader
+import com.omrihak.nfccards.qr.QrReader
 import com.omrihak.nfccards.ui.AudioScreen
 import com.omrihak.nfccards.ui.IdleScreen
 import com.omrihak.nfccards.ui.VideoScreen
@@ -32,6 +35,10 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
     private lateinit var nfcReader: NfcReader
+    private lateinit var qrReader: QrReader
+
+    // No callback needed: the dialog pauses the activity, and onResume starts the QR reader.
+    private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,6 +47,9 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
 
         nfcReader = NfcReader(this) { uri -> viewModel.onCardScanned(uri) }
+        // A QR code holding a content.json link works exactly like a card.
+        qrReader = QrReader(this) { text -> viewModel.onCardScanned(text) }
+        if (savedInstanceState == null) cameraPermission.launch(Manifest.permission.CAMERA)
 
         setContent { App(viewModel) }
 
@@ -74,16 +84,24 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         nfcReader.start()
+        qrReader.start()
     }
 
+    // Also runs when the screen turns off, so the camera only scans while the screen is on.
     override fun onPause() {
         nfcReader.stop()
+        qrReader.stop()
         super.onPause()
     }
 
     override fun onStop() {
         viewModel.onBackground()
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        qrReader.close()
+        super.onDestroy()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

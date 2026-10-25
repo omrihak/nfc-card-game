@@ -64,7 +64,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var currentCard: String? = null
     private var currentMediaUrl: String? = null
 
-    /** [uri] is what the NFC reader found on the card; null if the card had no NDEF URI. Any thread. */
+    /** [uri] is what the NFC reader found on the card (null if it had no NDEF URI) or the text of a QR code. Any thread. */
     fun onCardScanned(uri: String?) {
         viewModelScope.launch { handleScan(uri) }
     }

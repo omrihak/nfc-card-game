@@ -34,11 +34,19 @@ Tips
   needs a *different* file (new link).
 - Tap each card once while online; from then on it works offline and starts instantly.
 
+### QR codes instead of a sticker
+
+A QR code containing the same `content.json` share link works exactly like a card: hold it in front of the
+**front camera**. Grant the camera permission once on first launch. Scanning is invisible (no preview), runs only
+while the app is on screen with the screen on, uses low resolution and the camera's lowest frame rate, and stops
+for 10 seconds after each code so a code left in view doesn't restart the song. Print codes large enough for the
+front camera's fixed focus (roughly 5 cm or more, held 15-30 cm away).
+
 ## Behaviour
 
 - Same card while it is playing: ignored. A different card: switches immediately.
 - Tap the screen: pause / resume. Audio and video play once, then the app returns to the idle screen.
-- Anything that goes wrong (unknown tag, no internet, bad JSON, missing/unsupported media...) returns to the idle screen with a small wordless wobble. Details are in Logcat (tags `NfcReader`, `ContentResolver`, `MediaCache`, `MainViewModel`).
+- Anything that goes wrong (unknown tag, no internet, bad JSON, missing/unsupported media...) returns to the idle screen with a small wordless wobble. Details are in Logcat (tags `NfcReader`, `QrReader`, `ContentResolver`, `MediaCache`, `MainViewModel`).
 - Volume follows the phone's volume.
 
 ## Drive notes
