@@ -64,6 +64,14 @@
     <p id="signed-out" class="hint">Sign in to add cards. Files go to a "Tap and Play" folder in your Google Drive.</p>
   </main>
 
+  <dialog id="qr-dialog">
+    <h2 id="qr-name"></h2>
+    <div id="qr-image"></div>
+    <p class="hint">Hold this up to the player's camera. It works the same as tapping the sticker.</p>
+    <a id="qr-link" target="_blank" rel="noopener"></a>
+    <button id="qr-close" type="button">Close</button>
+  </dialog>
+
   <template id="card-row">
     <li>
       <div class="row-main">
@@ -72,12 +80,14 @@
       </div>
       <div class="row-actions">
         <button type="button" class="write-nfc">Write to sticker</button>
+        <button type="button" class="show-qr secondary">QR code</button>
         <button type="button" class="copy-link secondary">Copy link</button>
         <a class="open-folder" target="_blank" rel="noopener">Folder</a>
       </div>
     </li>
   </template>
 
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="config.js"></script>
   <script src="drive.js"></script>
   <script src="app.js"></script>

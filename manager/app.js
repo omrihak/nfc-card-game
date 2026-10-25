@@ -13,6 +13,9 @@
 const config = window.MANAGER_CONFIG;
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
 const INDEX_NAME = "cards.json";
+// The access token is kept across page reloads until it expires (about an hour). After that the
+// next action asks Google again, which is one click without the consent screen.
+const SESSION_KEY = "cardManagerSession";
 
 const $ = (id) => document.getElementById(id);
 
@@ -32,6 +35,7 @@ function onGoogleLoaded() {
       if (response.error) return pending && pending.reject(new Error(response.error));
       Drive.setToken(response.access_token);
       tokenExpiresAt = Date.now() + (Number(response.expires_in) - 60) * 1000;
+      saveSession();
       pending && pending.resolve();
     },
     error_callback: (err) => {
@@ -44,11 +48,52 @@ function onGoogleLoaded() {
 
 /** Must be called synchronously from a click, because it may open Google's popup. */
 function ensureToken() {
-  if (Date.now() < tokenExpiresAt) return Promise.resolve();
+  if (Drive.token() && Date.now() < tokenExpiresAt) return Promise.resolve();
   if (!tokenClient) return Promise.reject(new Error("Google sign-in is still loading, try again"));
   return new Promise((resolve, reject) => {
     pendingToken = { resolve, reject };
     tokenClient.requestAccessToken({ prompt: tokenExpiresAt ? "" : "consent" });
+  });
+}
+
+function saveSession() {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token: Drive.token(), expiresAt: tokenExpiresAt }));
+  } catch (e) {
+    // Private mode or storage blocked: sign-in just won't survive a reload.
+  }
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch (e) {}
+}
+
+/** Signs back in from the previous visit's token, if it is still valid. */
+function restoreSession() {
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(SESSION_KEY));
+  } catch (e) {}
+  if (!saved || !saved.token) return;
+  // Remembering that we signed in before skips the consent screen next time, even once expired.
+  tokenExpiresAt = saved.expiresAt || 1;
+  if (Date.now() >= saved.expiresAt) {
+    Drive.setToken(null);
+    return;
+  }
+  Drive.setToken(saved.token);
+  showSignedIn(true);
+  refreshCards().catch((e) => {
+    if (/Drive 401/.test(e.message)) {
+      // Revoked or expired early: back to the sign-in button.
+      Drive.setToken(null);
+      clearSession();
+      showSignedIn(false);
+    } else {
+      showError(e);
+    }
   });
 }
 
@@ -73,6 +118,7 @@ $("signout").addEventListener("click", () => {
   if (Drive.token()) google.accounts.oauth2.revoke(Drive.token(), () => {});
   Drive.setToken(null);
   tokenExpiresAt = 0;
+  clearSession();
   rootFolder = null;
   $("cards").replaceChildren();
   showSignedIn(false);
@@ -204,6 +250,7 @@ async function refreshCards() {
         row.querySelector(".row-type").textContent = card.type === "video" ? "video" : "song";
         row.querySelector(".open-folder").href = Drive.folderLink(card.folderId);
         row.querySelector(".copy-link").addEventListener("click", (e) => copyLink(card, e.currentTarget));
+        row.querySelector(".show-qr").addEventListener("click", () => showQr(card));
         const write = row.querySelector(".write-nfc");
         if (nfcSupported()) {
           write.addEventListener("click", (e) => writeSticker(card, e.currentTarget));
@@ -239,6 +286,54 @@ async function writeSticker(card, button) {
   }, 2500);
 }
 
+/** Shows the card's link as a QR code, for testing with the player's camera instead of a sticker. */
+function showQr(card) {
+  $("qr-name").textContent = card.name;
+  $("qr-link").textContent = card.contentUrl;
+  $("qr-link").href = card.contentUrl;
+  $("qr-image").replaceChildren();
+  if (typeof qrcode !== "function") {
+    $("qr-image").textContent = "The QR code library did not load. Check your connection and reload.";
+  } else {
+    $("qr-image").append(qrSvg(card.contentUrl));
+  }
+  $("qr-dialog").showModal();
+}
+
+function qrSvg(text) {
+  const qr = qrcode(0, "M");
+  qr.addData(text);
+  qr.make();
+  const count = qr.getModuleCount();
+  const margin = 4; // quiet zone, in modules
+  const size = count + margin * 2;
+  let path = "";
+  for (let row = 0; row < count; row++) {
+    for (let col = 0; col < count; col++) {
+      if (qr.isDark(row, col)) path += `M${col + margin} ${row + margin}h1v1h-1z`;
+    }
+  }
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+  svg.setAttribute("shape-rendering", "crispEdges");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "QR code for the card link");
+  const background = document.createElementNS(ns, "rect");
+  background.setAttribute("width", size);
+  background.setAttribute("height", size);
+  background.setAttribute("fill", "#fff");
+  const modules = document.createElementNS(ns, "path");
+  modules.setAttribute("d", path);
+  modules.setAttribute("fill", "#000");
+  svg.append(background, modules);
+  return svg;
+}
+
+$("qr-close").addEventListener("click", () => $("qr-dialog").close());
+// Click on the backdrop closes it too.
+$("qr-dialog").addEventListener("click", (e) => e.target === e.currentTarget && $("qr-dialog").close());
+
 async function copyLink(card, button) {
   const label = button.textContent;
   try {
@@ -270,3 +365,5 @@ function showError(error) {
 function hideError() {
   $("error").hidden = true;
 }
+
+restoreSession();
