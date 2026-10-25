@@ -127,7 +127,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Long-press: stop whatever is playing and go back to the idle screen. */
+    /** Hold (4 s): stop whatever is playing and go back to the idle screen. */
     fun stop() {
         loadJob?.cancel()
         player.stop()

@@ -3,12 +3,10 @@ package com.omrihak.nfccards.ui
 import android.graphics.Color as AndroidColor
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
@@ -16,7 +14,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.omrihak.nfccards.media.PlayerController
 
-/** Full-screen video, no controls. Tap anywhere to pause or resume, long-press to stop. */
+/** Full-screen video, no controls. Tap anywhere to pause or resume, hold for 4 seconds to stop. */
 @OptIn(UnstableApi::class)
 @Composable
 fun VideoScreen(player: PlayerController, onStop: () -> Unit) {
@@ -24,7 +22,7 @@ fun VideoScreen(player: PlayerController, onStop: () -> Unit) {
         Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .pointerInput(player) { detectTapGestures(onTap = { player.toggle() }, onLongPress = { onStop() }) },
+            .tapOrHold(player, onTap = { player.toggle() }, onHold = onStop),
     ) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),

@@ -4,13 +4,11 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -21,14 +19,14 @@ import androidx.compose.ui.layout.ContentScale
 import com.omrihak.nfccards.media.PlayerController
 import kotlin.math.min
 
-/** Artwork as large as the screen allows (aspect ratio kept). Tap anywhere to pause or resume, long-press to stop. */
+/** Artwork as large as the screen allows (aspect ratio kept). Tap anywhere to pause or resume, hold for 4 seconds to stop. */
 @Composable
 fun AudioScreen(artwork: Bitmap?, player: PlayerController, onStop: () -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
             .background(Color(0xFF101418))
-            .pointerInput(player) { detectTapGestures(onTap = { player.toggle() }, onLongPress = { onStop() }) },
+            .tapOrHold(player, onTap = { player.toggle() }, onHold = onStop),
     ) {
         if (artwork != null) {
             val image = remember(artwork) { artwork.asImageBitmap() }

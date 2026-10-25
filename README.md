@@ -78,7 +78,7 @@ storage of its own on a personal Gmail account.
 ## Behaviour
 
 - Same card while it is playing: ignored. A different card: switches immediately.
-- Tap the screen: pause / resume. Long-press: stop and return to the idle screen. Audio and video play once, then the app returns to the idle screen.
+- Tap the screen: pause / resume. Hold for 4 seconds: stop and return to the idle screen. Audio and video play once, then the app returns to the idle screen.
 - QR codes work like cards: hold one up to the front camera (live view in the small circle, top-left). A code
   containing the `content.json` link plays it; it fires once, and again only after being out of view for 2 seconds.
   Admin card URIs work as QR codes too. In kiosk mode the camera permission is granted automatically.
