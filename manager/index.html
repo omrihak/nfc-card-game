@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Card Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Tap and Play cards</h1>
+    <div id="account">
+      <button id="signin" type="button">Sign in with Google</button>
+      <button id="signout" type="button" class="link" hidden>Sign out</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="new-card" class="card" hidden>
+      <h2>New card</h2>
+      <form id="card-form">
+        <label>Name
+          <input id="name" required maxlength="80" placeholder="e.g. Baby Shark">
+        </label>
+
+        <fieldset>
+          <legend>Type</legend>
+          <label class="inline"><input type="radio" name="type" value="audio" checked> Song + picture</label>
+          <label class="inline"><input type="radio" name="type" value="video"> Video</label>
+        </fieldset>
+
+        <div data-for="audio">
+          <label>Song (audio file)
+            <input id="audio-file" type="file" accept="audio/*">
+          </label>
+          <label>Picture (optional)
+            <input id="image-file" type="file" accept="image/*">
+          </label>
+        </div>
+        <div data-for="video" hidden>
+          <label>Video file
+            <input id="video-file" type="file" accept="video/*">
+          </label>
+        </div>
+
+        <button id="create" type="submit">Create card</button>
+      </form>
+      <div id="progress" hidden>
+        <p id="progress-text"></p>
+        <progress id="progress-bar" max="1" value="0"></progress>
+      </div>
+      <p id="error" class="error" hidden></p>
+    </section>
+
+    <section id="cards-section" class="card" hidden>
+      <h2>Cards</h2>
+      <p id="nfc-hint" class="hint" hidden>
+        To write a sticker, open this page in Chrome on an Android phone with NFC.
+      </p>
+      <ul id="cards"></ul>
+      <p id="no-cards" class="hint" hidden>No cards yet.</p>
+    </section>
+
+    <p id="signed-out" class="hint">Sign in to add cards. Files go to a "Tap and Play" folder in your Google Drive.</p>
+  </main>
+
+  <template id="card-row">
+    <li>
+      <div class="row-main">
+        <strong class="row-name"></strong>
+        <span class="row-type"></span>
+      </div>
+      <div class="row-actions">
+        <button type="button" class="write-nfc">Write to sticker</button>
+        <button type="button" class="copy-link secondary">Copy link</button>
+        <a class="open-folder" target="_blank" rel="noopener">Folder</a>
+      </div>
+    </li>
+  </template>
+
+  <script src="config.js"></script>
+  <script src="drive.js"></script>
+  <script src="app.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async onload="onGoogleLoaded()"></script>
+</body>
+</html>
