@@ -20,7 +20,8 @@ NFC card (URL) -> content.json -> audio/video (+ cover) -> cached on the phone -
    { "type": "video", "media": "<share link to movie.mp4>" }
    ```
 
-   `type` and `media` are required, `image` is optional (artwork for audio). Unknown extra
+   `type` and `media` are required, `image` is optional (artwork shown while a song plays, and the front of a printed card; the player
+   ignores it for videos). Unknown extra
    fields are ignored, so the format can grow. Use ordinary Drive share links
    (`https://drive.google.com/file/d/<ID>/view?...`); the app turns them into direct downloads.
 3. With any external NFC app, write the **`content.json` share link as a URL/URI record** to an NTAG215
@@ -37,7 +38,7 @@ Tips
 ## Card manager (web page)
 
 `manager/` is a small web page that does steps 1-2 above for you, and on Android also step 3.
-Pick a song (+ optional picture) or a video and give the card a name. The page then:
+Pick a song or a video (+ an optional picture, used as the song's artwork and on the printed card) and give the card a name. The page then:
 
 1. creates `Tap and Play/<name>/` in your Google Drive and uploads the files into it,
 2. sets them to *Anyone with the link -> Viewer*,

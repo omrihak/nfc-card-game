@@ -145,7 +145,7 @@ $("card-form").addEventListener("submit", (event) => {
   const name = $("name").value.trim();
   const type = selectedType();
   const media = type === "audio" ? $("audio-file").files[0] : $("video-file").files[0];
-  const image = type === "audio" ? $("image-file").files[0] : undefined;
+  const image = $("image-file").files[0];
   if (!name) return showError("Give the card a name.");
   if (!media) return showError(type === "audio" ? "Choose a song." : "Choose a video.");
 
@@ -443,7 +443,7 @@ async function printCards(cards) {
     "PDF downloaded." + (missing.length ? ` Couldn't load the picture for: ${missing.join(", ")}.` : "");
 }
 
-/** The card's picture from its content.json, or null if it has none (videos). */
+/** The card's picture from its content.json, or null if it has none. */
 async function loadCardImage(card) {
   const contentId = Drive.idFromLink(card.contentUrl);
   if (!contentId) throw new Error(`Bad card link: ${card.contentUrl}`);
