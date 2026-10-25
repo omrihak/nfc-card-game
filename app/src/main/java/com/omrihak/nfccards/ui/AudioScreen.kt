@@ -19,14 +19,14 @@ import androidx.compose.ui.layout.ContentScale
 import com.omrihak.nfccards.media.PlayerController
 import kotlin.math.min
 
-/** Artwork as large as the screen allows (aspect ratio kept). Tap anywhere to pause or resume, hold for 4 seconds to stop. */
+/** Artwork as large as the screen allows (aspect ratio kept). Double-tap anywhere to pause or resume, hold for 4 seconds to stop. */
 @Composable
 fun AudioScreen(artwork: Bitmap?, player: PlayerController, onStop: () -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
             .background(Color(0xFF101418))
-            .tapOrHold(player, onTap = { player.toggle() }, onHold = onStop),
+            .doubleTapOrHold(player, onDoubleTap = { player.toggle() }, onHold = onStop),
     ) {
         if (artwork != null) {
             val image = remember(artwork) { artwork.asImageBitmap() }

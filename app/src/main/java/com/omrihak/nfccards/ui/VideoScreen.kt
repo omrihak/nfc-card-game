@@ -14,7 +14,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.omrihak.nfccards.media.PlayerController
 
-/** Full-screen video, no controls. Tap anywhere to pause or resume, hold for 4 seconds to stop. */
+/** Full-screen video, no controls. Double-tap anywhere to pause or resume, hold for 4 seconds to stop. */
 @OptIn(UnstableApi::class)
 @Composable
 fun VideoScreen(player: PlayerController, onStop: () -> Unit) {
@@ -22,7 +22,7 @@ fun VideoScreen(player: PlayerController, onStop: () -> Unit) {
         Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .tapOrHold(player, onTap = { player.toggle() }, onHold = onStop),
+            .doubleTapOrHold(player, onDoubleTap = { player.toggle() }, onHold = onStop),
     ) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
