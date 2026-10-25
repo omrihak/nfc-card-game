@@ -229,6 +229,15 @@ async function readIndex() {
 async function addToIndex(card) {
   const { file, cards } = await readIndex();
   cards.push(card);
+  await writeIndex(file, cards);
+}
+
+async function removeFromIndex(card) {
+  const { file, cards } = await readIndex();
+  await writeIndex(file, cards.filter((c) => c.contentUrl !== card.contentUrl));
+}
+
+async function writeIndex(file, cards) {
   const text = JSON.stringify({ cards }, null, 2);
   if (file) {
     await Drive.overwriteText(file.id, text);
@@ -260,6 +269,7 @@ async function refreshCards() {
         row.querySelector(".open-folder").href = Drive.folderLink(card.folderId);
         row.querySelector(".copy-link").addEventListener("click", (e) => copyLink(card, e.currentTarget));
         row.querySelector(".show-qr").addEventListener("click", () => showQr(card));
+        row.querySelector(".remove-card").addEventListener("click", (e) => removeCard(card, e.currentTarget));
         const write = row.querySelector(".write-nfc");
         if (nfcSupported()) {
           write.addEventListener("click", (e) => writeSticker(card, e.currentTarget));
@@ -275,6 +285,31 @@ async function refreshCards() {
   $("print-panel").hidden = cards.length === 0;
   $("no-cards").hidden = cards.length > 0;
   $("nfc-hint").hidden = nfcSupported() || cards.length === 0;
+}
+
+/** Moves the card's Drive folder to the trash and takes it off the list, after asking. */
+function removeCard(card, button) {
+  const ok = window.confirm(
+    `Remove "${card.name}"?\n\n` +
+      "Its Drive folder goes to the trash (you can restore it from there for 30 days). " +
+      "Stickers and printed cards with this card's link stop working on phones that haven't played it yet.",
+  );
+  if (!ok) return;
+  hideError();
+  button.disabled = true;
+  button.textContent = "Removing…";
+  ensureToken()
+    .then(async () => {
+      if (card.folderId) await Drive.trash(card.folderId);
+      await removeFromIndex(card);
+      selected.delete(card.contentUrl);
+      await refreshCards();
+    })
+    .catch((e) => {
+      button.disabled = false;
+      button.textContent = "Remove";
+      showError(e);
+    });
 }
 
 function nfcSupported() {

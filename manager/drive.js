@@ -125,6 +125,22 @@ const Drive = (() => {
     });
   }
 
+  /**
+   * Moves a file or folder (with everything in it) to the Drive trash, where it can still be
+   * restored for 30 days. A file that no longer exists counts as done.
+   */
+  async function trash(fileId) {
+    try {
+      await request(`${API}/files/${fileId}?fields=id`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trashed: true }),
+      });
+    } catch (e) {
+      if (!/Drive 404/.test(e.message)) throw e;
+    }
+  }
+
   /** File id from a share link (or a ?id= download link), or null. */
   function idFromLink(link) {
     const match = /\/d\/([\w-]+)/.exec(link) || /[?&]id=([\w-]+)/.exec(link);
@@ -141,6 +157,6 @@ const Drive = (() => {
 
   return {
     setToken, token, find, createFolder, findOrCreateFolder, upload, makePublic, readText, readBlob,
-    overwriteText, idFromLink, shareLink, folderLink,
+    overwriteText, trash, idFromLink, shareLink, folderLink,
   };
 })();

@@ -47,6 +47,8 @@ Pick a song or a video (+ an optional picture, used as the song's artwork and on
 
 Each card in the list has **Write to sticker** (Chrome on Android with NFC, via Web NFC: hold an
 NTAG215 to the back of the phone), **Copy link** (the `content.json` link, for any NFC app) and **Folder**.
+**Remove** moves the card's Drive folder to the trash (restorable there for 30 days) and takes it off the list.
+Its stickers and printed cards then stop working, except on phones that have already played it (they keep it cached).
 
 **Printing cards.** Tick cards in the list and press **Make PDF**. Each A4 sheet holds 6 cards (85 x 85 mm, 2 x 3)
 and is two pages: the fronts (the card's picture, or a coloured card with the name if it has none), then the backs
