@@ -69,6 +69,9 @@ storage of its own on a personal Gmail account.
 
 - Same card while it is playing: ignored. A different card: switches immediately.
 - Tap the screen: pause / resume. Long-press: stop and return to the idle screen. Audio and video play once, then the app returns to the idle screen.
+- QR codes work like cards: hold one up to the front camera (live view in the small circle, top-left). A code
+  containing the `content.json` link plays it; it fires once, and again only after being out of view for 2 seconds.
+  Admin card URIs work as QR codes too. In kiosk mode the camera permission is granted automatically.
 - Battery level is shown small in the top-right corner (the system status bar is hidden).
 - Anything that goes wrong (unknown tag, no internet, bad JSON, missing/unsupported media...) returns to the idle screen with a small wordless wobble. Details are in Logcat (tags `NfcReader`, `ContentResolver`, `MediaCache`, `MainViewModel`).
 - Volume follows the phone's volume.
@@ -144,6 +147,7 @@ Pure-logic unit tests (`GoogleDriveUrlResolver`, `ContentMetadata`): `./gradlew 
 
 ```
 nfc/NfcReader            read-only NDEF URI reader (reader mode)
+qr/QrScanner             front-camera QR reader (CameraX + ZXing)
 content/ContentMetadata  parses content.json leniently
 content/GoogleDriveUrlResolver
 content/ContentResolver  card URL -> metadata -> local files (offline-first)
