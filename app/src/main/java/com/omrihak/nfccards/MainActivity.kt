@@ -13,12 +13,18 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -26,6 +32,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.omrihak.nfccards.kiosk.Kiosk
 import com.omrihak.nfccards.nfc.NfcReader
 import com.omrihak.nfccards.ui.AudioScreen
+import com.omrihak.nfccards.ui.BatteryIndicator
 import com.omrihak.nfccards.ui.IdleScreen
 import com.omrihak.nfccards.ui.VideoScreen
 import kotlinx.coroutines.launch
@@ -131,8 +138,14 @@ private fun App(viewModel: MainViewModel) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         when (val s = state) {
             UiState.Idle, UiState.Loading -> IdleScreen(busy = s == UiState.Loading, problems = problems)
-            is UiState.Audio -> AudioScreen(artwork = s.artwork, player = viewModel.player)
-            UiState.Video -> VideoScreen(player = viewModel.player)
+            is UiState.Audio -> AudioScreen(artwork = s.artwork, player = viewModel.player, onStop = viewModel::stop)
+            UiState.Video -> VideoScreen(player = viewModel.player, onStop = viewModel::stop)
         }
+        BatteryIndicator(
+            Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(WindowInsets.displayCutout)
+                .padding(8.dp),
+        )
     }
 }

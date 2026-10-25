@@ -68,7 +68,8 @@ storage of its own on a personal Gmail account.
 ## Behaviour
 
 - Same card while it is playing: ignored. A different card: switches immediately.
-- Tap the screen: pause / resume. Audio and video play once, then the app returns to the idle screen.
+- Tap the screen: pause / resume. Long-press: stop and return to the idle screen. Audio and video play once, then the app returns to the idle screen.
+- Battery level is shown small in the top-right corner (the system status bar is hidden).
 - Anything that goes wrong (unknown tag, no internet, bad JSON, missing/unsupported media...) returns to the idle screen with a small wordless wobble. Details are in Logcat (tags `NfcReader`, `ContentResolver`, `MediaCache`, `MainViewModel`).
 - Volume follows the phone's volume.
 
