@@ -111,3 +111,16 @@ progress { width: 100%; }
 #print-panel details { margin-bottom: 12px; }
 #print-panel summary { cursor: pointer; color: var(--accent); }
 .print-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+#qr-dialog {
+  width: min(92vw, 480px);
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+}
+#qr-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+#qr-image svg { display: block; width: 100%; height: auto; max-height: 70vh; border-radius: 8px; }
+#qr-link { display: block; margin-bottom: 16px; font-size: 0.8rem; word-break: break-all; color: var(--accent); }
