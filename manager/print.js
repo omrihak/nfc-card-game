@@ -2,7 +2,7 @@
  * Printable card sheets as a PDF.
  *
  * A4 portrait, 2 x 3 cards per sheet. Each sheet is two pages: the fronts (the card's picture),
- * then the backs (QR code of the content.json link + the card's name). Print double-sided,
+ * then the backs (four copies of the QR code of the content.json link, 2 x 2, + the card's name). Print double-sided,
  * flipping on the long edge, at actual size. The back page is mirrored left-right so that every
  * back lands behind its own front, and the grid is centred on the page so that the mirror is exact.
  *
@@ -22,7 +22,8 @@ const CardPrint = (() => {
   const CARD_W = 85; // mm
   const CARD_H = 85;
   const GAP = 6; // white space between cards; the cut goes through its middle
-  const FINGER_MARGIN = 14; // white border around the QR code, so fingers holding the card don't cover it
+  const QR_EDGE = 2; // white between the QR codes and the card's edge (the cut adds GAP / 2 more)
+  const QR_BAND = 8; // white band between the 2 x 2 QR codes, both ways; the name goes in the horizontal one
   const MARK_OFFSET = 1; // crop marks start this far outside the outer cut lines...
   const MARK_LEN = 5; // ...and are this long
   const DPI = 300;
@@ -150,8 +151,9 @@ const CardPrint = (() => {
   }
 
   /**
-   * White, with the QR code of the content.json link centred, inside a FINGER_MARGIN border on every
-   * side. The card's name goes in the bottom border.
+   * White, with four copies of the QR code of the content.json link in a 2 x 2 grid, so that a hand
+   * holding the card still leaves at least one of them visible. The codes are QR_BAND apart (which is
+   * also their quiet zone) and QR_EDGE from the edge; the card's name goes in the middle of the band.
    */
   function drawBack(card) {
     const canvas = newCanvas(CARD_W, CARD_H);
@@ -164,20 +166,26 @@ const CardPrint = (() => {
     qr.addData(card.contentUrl);
     qr.make();
     const modules = qr.getModuleCount();
-    const space = px(Math.min(CARD_W, CARD_H) - 2 * FINGER_MARGIN);
+    const space = px((Math.min(CARD_W, CARD_H) - 2 * QR_EDGE - QR_BAND) / 2);
     const module = Math.floor(space / modules); // whole pixels: crisp
     const size = module * modules;
-    const left = Math.round((w - size) / 2);
-    const top = Math.round((h - size) / 2);
+    const band = px(QR_BAND);
+    // Codes hug the central band; what whole-pixel rounding leaves over goes to the outer edges.
+    const lefts = [Math.round((w - band) / 2) - size, Math.round((w + band) / 2)];
+    const tops = [Math.round((h - band) / 2) - size, Math.round((h + band) / 2)];
     ctx.fillStyle = "#000";
-    for (let r = 0; r < modules; r++) {
-      for (let c = 0; c < modules; c++) {
-        if (qr.isDark(r, c)) ctx.fillRect(left + c * module, top + r * module, module, module);
+    for (const top of tops) {
+      for (const left of lefts) {
+        for (let r = 0; r < modules; r++) {
+          for (let c = 0; c < modules; c++) {
+            if (qr.isDark(r, c)) ctx.fillRect(left + c * module, top + r * module, module, module);
+          }
+        }
       }
     }
 
     ctx.fillStyle = "#222";
-    drawName(ctx, card.name, w / 2, (top + size + h) / 2, w - px(10), px(6));
+    drawName(ctx, card.name, w / 2, h / 2, w - px(2 * QR_EDGE), px(5));
     return canvas;
   }
 
