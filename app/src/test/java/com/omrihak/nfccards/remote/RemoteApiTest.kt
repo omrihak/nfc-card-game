@@ -2,6 +2,7 @@ package com.omrihak.nfccards.remote
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -24,11 +25,29 @@ class RemoteApiTest {
         override fun set(level: Int) { this.level = level }
     }
 
+    private class FakeAdmin : RemoteApi.Admin {
+        val calls = mutableListOf<String>()
+        override val version = "1.2.3"
+        override var isDeviceOwner = true
+        override var updateState = "idle"
+        override val updateMessage: String? = null
+        override fun openSettings() { calls += "settings" }
+        override fun release() { calls += "release" }
+        override fun update(): Boolean {
+            calls += "update"
+            if (isDeviceOwner) updateState = "downloading"
+            return isDeviceOwner
+        }
+    }
+
+    private val token = "a".repeat(32)
     private val player = FakePlayer()
     private val volume = FakeVolume()
-    private val api = RemoteApi(player, volume)
+    private val admin = FakeAdmin()
+    private val api = RemoteApi(player, volume, admin) { listOf("b".repeat(40), token) }
 
-    private fun call(method: String, path: String, body: String = "") = api.handle(HttpRequest(method, path, body))
+    private fun call(method: String, path: String, body: String = "", auth: String? = "Bearer $token") =
+        api.handle(HttpRequest(method, path, body, if (auth == null) emptyMap() else mapOf("authorization" to auth)))
 
     @Test fun statusIncludesVolume() {
         val response = call("GET", "/api/status")
@@ -38,6 +57,47 @@ class RemoteApiTest {
         assertEquals("idle", json.getString("state"))
         assertEquals(5, json.getInt("volume"))
         assertEquals(15, json.getInt("maxVolume"))
+        assertTrue(json.getBoolean("paired"))
+        assertEquals("1.2.3", json.getString("version"))
+        assertTrue(json.getBoolean("deviceOwner"))
+        assertEquals("idle", json.getString("update"))
+    }
+
+    @Test fun unpairedCallsAre401ButSayTheyAreAPlayer() {
+        for (auth in listOf(null, "Bearer wrong", "Bearer ${token}x", token, "Basic $token")) {
+            val response = call("GET", "/api/status", auth = auth)
+            assertEquals("auth=$auth", 401, response.status)
+            val json = JSONObject(response.body)
+            assertEquals("tapandplay", json.getString("app"))
+            assertFalse(json.getBoolean("paired"))
+        }
+        // Commands too, and before the route is even looked at.
+        assertEquals(401, call("POST", "/api/stop", auth = null).status)
+        assertEquals(401, call("POST", "/api/admin/release", auth = null).status)
+        assertEquals(401, call("GET", "/api/nope", auth = null).status)
+        assertTrue(player.calls.isEmpty())
+        assertTrue(admin.calls.isEmpty())
+    }
+
+    @Test fun anyPairedTokenWorks() {
+        assertEquals(200, call("GET", "/api/status", auth = "bearer  ${"b".repeat(40)} ").status)
+    }
+
+    @Test fun adminRoutes() {
+        assertEquals(200, call("POST", "/api/admin/settings").status)
+        assertEquals(200, call("POST", "/api/admin/release").status)
+        val update = call("POST", "/api/admin/update")
+        assertEquals(200, update.status)
+        assertEquals("downloading", JSONObject(update.body).getString("update"))
+        assertEquals(listOf("settings", "release", "update"), admin.calls)
+        assertEquals(405, call("GET", "/api/admin/update").status)
+    }
+
+    @Test fun updateNeedsDeviceOwner() {
+        admin.isDeviceOwner = false
+        val response = call("POST", "/api/admin/update")
+        assertEquals(409, response.status)
+        assertTrue(JSONObject(response.body).getString("error").contains("device owner"))
     }
 
     @Test fun playPassesTheCardUrl() {
@@ -73,12 +133,15 @@ class RemoteApiTest {
     @Test fun wrongMethodOrPath() {
         assertEquals(405, call("GET", "/api/stop").status)
         assertEquals(404, call("GET", "/nope").status)
+        assertEquals(404, call("GET", "/nope", auth = null).status)
         assertEquals(400, call("POST", "/api/volume", "not json").status)
     }
 
     @Test fun readsRequestWithBody() {
-        val raw = "POST /api/play?x=1 HTTP/1.1\r\nHost: a\r\nContent-Length: 13\r\n\r\n{\"url\":\"h\"}  "
+        val raw = "POST /api/play?x=1 HTTP/1.1\r\nHost: a\r\nAuthorization: Bearer t0k\r\n" +
+            "Content-Length: 13\r\n\r\n{\"url\":\"h\"}  "
         val request = RemoteServer.readRequest(raw.byteInputStream())!!
+        assertEquals("Bearer t0k", request.headers["authorization"])
         assertEquals("POST", request.method)
         assertEquals("/api/play", request.path)
         assertEquals("{\"url\":\"h\"}  ", request.body)
