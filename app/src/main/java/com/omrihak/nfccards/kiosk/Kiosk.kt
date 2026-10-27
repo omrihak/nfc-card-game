@@ -6,15 +6,25 @@ import android.app.ActivityManager
 import android.app.admin.DeviceAdminReceiver
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import com.omrihak.nfccards.MainActivity
 
-/** Exists only so the app can be made device owner (see README, "Kiosk mode"). */
-class AdminReceiver : DeviceAdminReceiver()
+/** Exists so the app can be made device owner (see README, "Kiosk mode"). */
+class AdminReceiver : DeviceAdminReceiver() {
+    /** QR-code provisioning finished: open the app, which locks itself in right away. */
+    override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
+        Log.i("Kiosk", "Provisioned as device owner")
+        Kiosk.setAsHome(context)
+        // Device owners may start activities from the background.
+        context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+}
 
 /**
  * Keeps the toddler in the app. Only does anything when the app is device owner:
@@ -38,14 +48,7 @@ class Kiosk(private val activity: Activity) {
         if (Build.VERSION.SDK_INT >= 28) {
             dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
         }
-        dpm.addPersistentPreferredActivity(
-            admin,
-            IntentFilter(Intent.ACTION_MAIN).apply {
-                addCategory(Intent.CATEGORY_HOME)
-                addCategory(Intent.CATEGORY_DEFAULT)
-            },
-            ComponentName(activity, activity::class.java),
-        )
+        setAsHome(activity)
         // For QR scanning, without a permission dialog.
         dpm.setPermissionGrantState(
             admin,
@@ -101,5 +104,17 @@ class Kiosk(private val activity: Activity) {
         private const val TAG = "Kiosk"
         const val SETTINGS_CARD = "tapandplay://settings"
         const val RELEASE_CARD = "tapandplay://release"
+
+        /** Makes [MainActivity] the permanent home screen. Only works for the device owner. */
+        fun setAsHome(context: Context) {
+            context.getSystemService(DevicePolicyManager::class.java).addPersistentPreferredActivity(
+                ComponentName(context, AdminReceiver::class.java),
+                IntentFilter(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_HOME)
+                    addCategory(Intent.CATEGORY_DEFAULT)
+                },
+                ComponentName(context, MainActivity::class.java),
+            )
+        }
     }
 }

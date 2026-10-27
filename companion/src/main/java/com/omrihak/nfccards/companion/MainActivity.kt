@@ -49,12 +49,14 @@ import com.omrihak.nfccards.companion.player.Connection
 import com.omrihak.nfccards.companion.player.RemoteViewModel
 import com.omrihak.nfccards.companion.ui.CardsScreen
 import com.omrihak.nfccards.companion.ui.PlayerScreen
+import com.omrihak.nfccards.companion.ui.SetupScreen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
- * The parent's companion app: a remote control for the player phone (over the home Wi-Fi), and
- * the card manager (cards in the parent's Google Drive, like the web manager).
+ * The parent's companion app: a remote control for the player phone (over the home Wi-Fi),
+ * the card manager (cards in the parent's Google Drive, like the web manager), and the QR code that sets up
+ * a new player phone.
  */
 class MainActivity : ComponentActivity() {
 
@@ -182,11 +184,12 @@ private fun CompanionApp(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(if (tab == 0) "Player" else "Cards") }) },
+        topBar = { TopAppBar(title = { Text(listOf("Player", "Cards", "Set up a player phone")[tab]) }) },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(selected = tab == 0, onClick = { tab = 0 }, icon = { Text("▶") }, label = { Text("Player") })
                 NavigationBarItem(selected = tab == 1, onClick = { tab = 1 }, icon = { Text("▦") }, label = { Text("Cards") })
+                NavigationBarItem(selected = tab == 2, onClick = { tab = 2 }, icon = { Text("⚙") }, label = { Text("Setup") })
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
@@ -207,7 +210,7 @@ private fun CompanionApp(
                 onConnectManually = remote::connectManually,
                 modifier = modifier,
             )
-        } else {
+        } else if (tab == 1) {
             CardsScreen(
                 signedIn = signedIn,
                 cards = cards,
@@ -225,6 +228,8 @@ private fun CompanionApp(
                 onOpenWebManager = onOpenWebManager,
                 modifier = modifier,
             )
+        } else {
+            SetupScreen(modifier)
         }
     }
 
