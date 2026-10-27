@@ -36,9 +36,9 @@ class ContentResolver(
                 val media = async { cache.get(metadata.media) }
                 // Artwork is optional: any failure just means the default artwork is shown.
                 val artwork = async { metadata.image?.let { loadArtwork(it) } }
-                ResolvedContent.Audio(media.await(), artwork.await(), metadata.media)
+                ResolvedContent.Audio(media.await(), artwork.await(), metadata.media, metadata.name)
             }
-            ContentMetadata.TYPE_VIDEO -> ResolvedContent.Video(cache.get(metadata.media), metadata.media)
+            ContentMetadata.TYPE_VIDEO -> ResolvedContent.Video(cache.get(metadata.media), metadata.media, metadata.name)
             else -> throw ContentException(ErrorKind.UNSUPPORTED, "Unsupported content type ${metadata.type}")
         }
     }

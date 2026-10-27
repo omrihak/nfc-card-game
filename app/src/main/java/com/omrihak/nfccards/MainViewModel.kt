@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import com.omrihak.nfccards.content.ContentException
 import com.omrihak.nfccards.content.ContentResolver
@@ -12,6 +13,8 @@ import com.omrihak.nfccards.content.ErrorKind
 import com.omrihak.nfccards.content.ResolvedContent
 import com.omrihak.nfccards.media.MediaCache
 import com.omrihak.nfccards.media.PlayerController
+import com.omrihak.nfccards.remote.Remote
+import com.omrihak.nfccards.remote.RemoteApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.io.File
 
 sealed interface UiState {
@@ -38,8 +42,9 @@ sealed interface UiState {
 /**
  * Ties it together: card URI in, UI state out. All state changes happen on the main thread.
  * NFC knows nothing about media; the UI only renders [state].
+ * The parent's companion app drives the same functions over Wi-Fi (see [Remote]).
  */
-class MainViewModel(app: Application) : AndroidViewModel(app) {
+class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val resolver = ContentResolver(MediaCache(File(app.filesDir, "media")), appScope)
@@ -63,6 +68,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var loadJob: Job? = null
     private var currentCard: String? = null
     private var currentMediaUrl: String? = null
+    private var currentTitle: String? = null
+
+    private val remote = Remote(app, this, viewModelScope).also { it.start() }
 
     /** [uri] is what the NFC reader found on the card; null if the card had no NDEF URI. Any thread. */
     fun onCardScanned(uri: String?) {
@@ -90,11 +98,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         player.stop()
         currentCard = card
         currentMediaUrl = null
+        currentTitle = null
         _state.value = UiState.Loading
 
         loadJob = viewModelScope.launch {
             try {
-                when (val content = resolver.resolve(card)) {
+                val content = resolver.resolve(card)
+                currentTitle = content.title
+                when (content) {
                     is ResolvedContent.Audio -> {
                         currentMediaUrl = content.mediaUrl
                         _state.value = UiState.Audio(content.artwork)
@@ -127,13 +138,47 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Hold (4 s): stop whatever is playing and go back to the idle screen. */
-    fun stop() {
+    /** Hold (4 s), or the companion app: stop whatever is playing and go back to the idle screen. */
+    override fun stop() {
         loadJob?.cancel()
         player.stop()
         currentCard = null
         currentMediaUrl = null
+        currentTitle = null
         _state.value = UiState.Idle
+    }
+
+    // ---- Companion app (RemoteApi.Player); called on the main thread ----
+
+    override fun play(cardUrl: String) = handleScan(cardUrl)
+
+    override fun pause() = player.pause()
+
+    override fun resume() = player.resume()
+
+    override fun status(): JSONObject {
+        val json = JSONObject()
+        val state = _state.value
+        json.put(
+            "state",
+            when (state) {
+                UiState.Idle -> "idle"
+                UiState.Loading -> "loading"
+                is UiState.Audio -> "audio"
+                UiState.Video -> "video"
+            },
+        )
+        json.put("paused", (state is UiState.Audio || state is UiState.Video) && !player.playWhenReady)
+        if (state != UiState.Idle) {
+            json.put("card", currentCard)
+            currentTitle?.let { json.put("title", it) }
+        }
+        if (state is UiState.Audio || state is UiState.Video) {
+            json.put("positionMs", player.player.currentPosition)
+            val duration = player.player.duration
+            if (duration != C.TIME_UNSET) json.put("durationMs", duration)
+        }
+        return json
     }
 
     private fun onPlaybackError(error: PlaybackException) {
@@ -148,6 +193,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         player.stop()
         currentCard = null
         currentMediaUrl = null
+        currentTitle = null
         _state.value = UiState.Idle
         problem()
     }
@@ -160,6 +206,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun onBackground() = player.pause()
 
     override fun onCleared() {
+        remote.stop()
         loadJob?.cancel()
         player.release()
         appScope.cancel()

@@ -80,6 +80,13 @@ class PlayerController(context: Context, private val listener: Listener) {
         player.playWhenReady = false
     }
 
+    /** Continue after [pause]; from the start if the media has finished. */
+    fun resume() {
+        if (player.playbackState == Player.STATE_IDLE) return
+        if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
+        player.playWhenReady = true
+    }
+
     fun stop() {
         player.stop()
         player.clearMediaItems()

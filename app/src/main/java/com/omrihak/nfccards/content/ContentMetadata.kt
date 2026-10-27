@@ -16,6 +16,9 @@ data class ContentMetadata(
     val image: String?,
     val raw: JSONObject,
 ) {
+    /** Optional display name (written by the card manager); shown in the companion app. */
+    val name: String? get() = raw.stringOrNull("name")
+
     companion object {
         const val TYPE_AUDIO = "audio"
         const val TYPE_VIDEO = "video"
