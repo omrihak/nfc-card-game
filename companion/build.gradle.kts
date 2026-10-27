@@ -67,7 +67,7 @@ dependencies {
     // Google sign-in for Drive (AuthorizationClient).
     implementation("com.google.android.gms:play-services-auth:21.2.0")
 
-    // QR code for setting up a player phone.
+    // QR codes: pairing with the player, and setting up a player phone.
     implementation("com.google.zxing:core:3.5.3")
 
     testImplementation("junit:junit:4.13.2")

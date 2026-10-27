@@ -32,7 +32,8 @@ class AdminReceiver : DeviceAdminReceiver() {
  * or power menu), and the lock screen is disabled. Without device owner, the app still works
  * as a normal launcher (see README).
  *
- * The parent gets out with an admin card (a tag with [SETTINGS_CARD] or [RELEASE_CARD]).
+ * The parent gets out from the companion app, which sends the same [SETTINGS_CARD] or [RELEASE_CARD]
+ * over Wi-Fi, or with an admin card (a tag or QR code with one of them) as a backup.
  */
 class Kiosk(private val activity: Activity) {
 

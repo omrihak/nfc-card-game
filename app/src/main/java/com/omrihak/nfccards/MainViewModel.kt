@@ -13,6 +13,7 @@ import com.omrihak.nfccards.content.ErrorKind
 import com.omrihak.nfccards.content.ResolvedContent
 import com.omrihak.nfccards.media.MediaCache
 import com.omrihak.nfccards.media.PlayerController
+import com.omrihak.nfccards.remote.Pairing
 import com.omrihak.nfccards.remote.Remote
 import com.omrihak.nfccards.remote.RemoteApi
 import kotlinx.coroutines.CancellationException
@@ -65,12 +66,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
     private val _debugMessages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val debugMessages: SharedFlow<String> = _debugMessages.asSharedFlow()
 
+    /** Incremented on each pairing card, so the idle screen can give a small happy bounce. */
+    private val _pairings = MutableStateFlow(0)
+    val pairings: StateFlow<Int> = _pairings.asStateFlow()
+
+    /** Admin card URIs sent by the companion app; the activity handles them like the cards. */
+    private val _adminCards = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val adminCards: SharedFlow<String> = _adminCards.asSharedFlow()
+
     private var loadJob: Job? = null
     private var currentCard: String? = null
     private var currentMediaUrl: String? = null
     private var currentTitle: String? = null
 
-    private val remote = Remote(app, this, viewModelScope).also { it.start() }
+    private val pairing = Pairing(app)
+    private val remote = Remote(app, this, pairing, { _adminCards.tryEmit(it) }, viewModelScope).also { it.start() }
+
+    /** A pairing card (`tapandplay://pair?token=...`) lets a companion app in. False for any other card. Main thread. */
+    fun onPairingCard(uri: String): Boolean {
+        if (!pairing.onCard(uri)) return false
+        Log.i(TAG, "Paired a companion app")
+        _pairings.value += 1
+        return true
+    }
 
     /** [uri] is what the NFC reader found on the card; null if the card had no NDEF URI. Any thread. */
     fun onCardScanned(uri: String?) {

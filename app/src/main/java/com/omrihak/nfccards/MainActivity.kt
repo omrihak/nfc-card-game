@@ -77,6 +77,11 @@ class MainActivity : ComponentActivity() {
 
         setContent { App(viewModel, qrScanner) }
 
+        // The companion app's "Open settings" / "Remove kiosk": same as the admin cards.
+        lifecycleScope.launch {
+            viewModel.adminCards.collect { kiosk.onAdminCard(it) }
+        }
+
         // Debug builds only: say why a card failed (the toddler UI never does).
         if (isDebuggable()) {
             lifecycleScope.launch {
@@ -106,7 +111,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onCard(uri: String?) {
-        if (uri != null && kiosk.onAdminCard(uri)) return
+        if (uri != null && (kiosk.onAdminCard(uri) || viewModel.onPairingCard(uri))) return
         viewModel.onCardScanned(uri)
     }
 
@@ -166,12 +171,14 @@ class MainActivity : ComponentActivity() {
 private fun App(viewModel: MainViewModel, qrScanner: QrScanner) {
     val state by viewModel.state.collectAsState()
     val problems by viewModel.problems.collectAsState()
+    val pairings by viewModel.pairings.collectAsState()
 
     BackHandler(enabled = true) { /* the toddler can't leave */ }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         when (val s = state) {
-            UiState.Idle, UiState.Loading -> IdleScreen(busy = s == UiState.Loading, problems = problems)
+            UiState.Idle, UiState.Loading ->
+                IdleScreen(busy = s == UiState.Loading, problems = problems, pairings = pairings)
             is UiState.Audio -> AudioScreen(artwork = s.artwork, player = viewModel.player, onStop = viewModel::stop)
             UiState.Video -> VideoScreen(player = viewModel.player, onStop = viewModel::stop)
         }

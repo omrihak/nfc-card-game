@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.NFC" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Self-update from the companion app (kiosk/SelfUpdater). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <uses-feature android:name="android.hardware.nfc" android:required="true" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -77,5 +79,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- Self-update: the install result, and restarting the app once it has been replaced. -->
+        <receiver
+            android:name=".kiosk.UpdateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

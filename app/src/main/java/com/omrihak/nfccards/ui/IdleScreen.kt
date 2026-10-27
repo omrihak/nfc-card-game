@@ -3,9 +3,11 @@ package com.omrihak.nfccards.ui
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,10 +29,11 @@ import kotlin.math.sin
 /**
  * "Tap a card here": ripples around a bobbing card with a smiley, on a friendly landscape.
  * No text, no controls. [busy] speeds up the ripples while a card's content is being fetched;
- * a change in [problems] gives the card a short wordless wobble.
+ * a change in [problems] gives the card a short wordless wobble, a change in [pairings] (a parent's
+ * phone was paired) a short happy bounce with a green ring.
  */
 @Composable
-fun IdleScreen(busy: Boolean, problems: Int) {
+fun IdleScreen(busy: Boolean, problems: Int, pairings: Int = 0) {
     val transition = rememberInfiniteTransition(label = "idle")
     val pulse = transition.animateFloat(
         initialValue = 0f,
@@ -46,6 +49,13 @@ fun IdleScreen(busy: Boolean, problems: Int) {
                 wobble.animateTo(-1f, tween(70))
             }
             wobble.animateTo(0f, tween(70))
+        }
+    }
+    val joy = remember { Animatable(0f) }
+    LaunchedEffect(pairings) {
+        if (pairings > 0) {
+            joy.animateTo(1f, tween(150))
+            joy.animateTo(0f, spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessLow))
         }
     }
 
@@ -68,8 +78,17 @@ fun IdleScreen(busy: Boolean, problems: Int) {
             )
         }
 
+        if (joy.value > 0.01f) {
+            drawCircle(
+                color = Color(0xFF2E9E4F).copy(alpha = joy.value.coerceIn(0f, 1f)),
+                radius = unit * 0.3f,
+                center = center,
+                style = Stroke(width = unit * 0.04f),
+            )
+        }
+
         val bob = sin(p0 * 2f * PI.toFloat()) * unit * 0.015f
-        val cardW = unit * 0.26f
+        val cardW = unit * 0.26f * (1f + 0.15f * joy.value)
         val cardH = cardW * 1.25f
         val topLeft = Offset(center.x - cardW / 2f + wobble.value * unit * 0.03f, center.y - cardH / 2f + bob)
         drawRoundRect(Color.White, topLeft, Size(cardW, cardH), CornerRadius(cardW * 0.14f))

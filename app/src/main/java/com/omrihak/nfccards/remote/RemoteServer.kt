@@ -129,7 +129,7 @@ class RemoteServer(
                 read += n
             }
             val path = parts[1].substringBefore('?')
-            return HttpRequest(parts[0].uppercase(), path, String(body, Charsets.UTF_8))
+            return HttpRequest(parts[0].uppercase(), path, String(body, Charsets.UTF_8), headers)
         }
 
         /** Everything up to the blank line after the headers, without it. */
@@ -166,15 +166,23 @@ class RemoteServer(
         private fun reason(status: Int) = when (status) {
             200 -> "OK"
             400 -> "Bad Request"
+            401 -> "Unauthorized"
             403 -> "Forbidden"
             404 -> "Not Found"
             405 -> "Method Not Allowed"
+            409 -> "Conflict"
             else -> "Error"
         }
     }
 }
 
-data class HttpRequest(val method: String, val path: String, val body: String)
+/** [headers] have lower-case names. */
+data class HttpRequest(
+    val method: String,
+    val path: String,
+    val body: String,
+    val headers: Map<String, String> = emptyMap(),
+)
 
 data class HttpResponse(val status: Int, val body: String) {
     companion object {

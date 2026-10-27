@@ -14,21 +14,30 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 sealed interface Connection {
+    val name: String? get() = null
+
     /** No player known yet; looking for one on the Wi-Fi. */
     data object Searching : Connection
-    data class Connected(val name: String, val address: String) : Connection
+    data class Connected(override val name: String, val address: String) : Connection
+    /** The player answers but doesn't know this phone yet: show it the pairing code. */
+    data class NotPaired(override val name: String, val address: String) : Connection
     /** A player was known but doesn't answer: it (or this phone) is off the Wi-Fi, or the app is closed. */
-    data class Unreachable(val name: String, val address: String) : Connection
+    data class Unreachable(override val name: String, val address: String) : Connection
 }
 
 /**
  * The Player tab: finds the player, polls its status about once a second while the app is on
- * screen, and sends it commands.
+ * screen, and sends it commands. Until the player is paired, polling also notices the moment the
+ * player has scanned this phone's pairing code.
  */
 class RemoteViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs = app.getSharedPreferences("remote", Context.MODE_PRIVATE)
     private val finder = PlayerFinder(app) { found -> viewModelScope.launch { onFound(found) } }
+
+    /** Made once per install; the player keeps the last few it was shown. */
+    val token: String = prefs.getString(KEY_TOKEN, null)
+        ?: Pairing.newToken().also { prefs.edit().putString(KEY_TOKEN, it).apply() }
 
     private val _connection = MutableStateFlow<Connection>(
         prefs.getString(KEY_ADDRESS, null)
@@ -44,7 +53,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    private var client: PlayerClient? = prefs.getString(KEY_ADDRESS, null)?.let { PlayerClient(it) }
+    private var client: PlayerClient? = prefs.getString(KEY_ADDRESS, null)?.let { PlayerClient(it, token) }
     private var pollJob: Job? = null
 
     /** Polls and listens for players only while the app is on screen. */
@@ -70,6 +79,9 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
                     markConnected()
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: NotPairedException) {
+                    failures = 0
+                    markNotPaired()
                 } catch (e: Exception) {
                     failures++
                     if (failures >= 2) markUnreachable()
@@ -82,7 +94,8 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private fun onFound(found: FoundPlayer) {
         val current = _connection.value
         // Keep a player that answers; switch when the remembered one is gone (e.g. it got a new IP address).
-        if (current is Connection.Connected && current.address != found.address) return
+        val answering = (current as? Connection.Connected)?.address ?: (current as? Connection.NotPaired)?.address
+        if (answering != null && answering != found.address) return
         use(found.name, found.address)
     }
 
@@ -96,38 +109,46 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun use(name: String, address: String) {
         prefs.edit().putString(KEY_ADDRESS, address).putString(KEY_NAME, name).apply()
-        client = PlayerClient(address)
-        _connection.value = Connection.Unreachable(name, address)
+        val newClient = PlayerClient(address, token)
+        client = newClient
+        // Keep showing the pairing code while the same player is still unpaired (discovery repeats).
+        val current = _connection.value
+        if (!(current is Connection.NotPaired && current.address == address) &&
+            !(current is Connection.Connected && current.address == address)
+        ) {
+            _connection.value = Connection.Unreachable(name, address)
+        }
         // Check now rather than waiting for the next poll.
         viewModelScope.launch {
             try {
-                _status.value = PlayerClient(address).status()
+                _status.value = newClient.status()
                 markConnected()
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: NotPairedException) {
+                markNotPaired()
             } catch (e: Exception) {
                 // The poll keeps trying.
             }
         }
     }
 
+    private fun currentName(address: String) = _connection.value.name ?: address
+
     private fun markConnected() {
-        val c = _connection.value
         val address = client?.address ?: return
-        val name = when (c) {
-            is Connection.Connected -> c.name
-            is Connection.Unreachable -> c.name
-            Connection.Searching -> address
-        }
-        _connection.value = Connection.Connected(name, address)
+        _connection.value = Connection.Connected(currentName(address), address)
+    }
+
+    private fun markNotPaired() {
+        val address = client?.address ?: return
+        _connection.value = Connection.NotPaired(currentName(address), address)
+        _status.value = null
     }
 
     private fun markUnreachable() {
         val address = client?.address ?: return
-        val name = (_connection.value as? Connection.Connected)?.name
-            ?: (_connection.value as? Connection.Unreachable)?.name
-            ?: address
-        _connection.value = Connection.Unreachable(name, address)
+        _connection.value = Connection.Unreachable(currentName(address), address)
         _status.value = null
     }
 
@@ -137,6 +158,11 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     fun stop() = launchCommand { stop() }
     fun setVolume(level: Int) = launchCommand { setVolume(level) }
     fun stepVolume(step: Int) = launchCommand { stepVolume(step) }
+
+    // Parent tools
+    fun openSettingsOnPlayer() = launchCommand { openSettings() }
+    fun releasePlayer() = launchCommand { release() }
+    fun updatePlayer() = launchCommand { update() }
 
     fun clearError() {
         _error.value = null
@@ -156,6 +182,10 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
             markConnected()
         } catch (e: CancellationException) {
             throw e
+        } catch (e: NotPairedException) {
+            markNotPaired()
+        } catch (e: PlayerError) {
+            _error.value = e.message
         } catch (e: Exception) {
             _error.value = "The player didn't answer (${e.message ?: e.javaClass.simpleName}). " +
                 "Both phones need to be on the same Wi-Fi, with the player app open."
@@ -170,6 +200,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val KEY_ADDRESS = "address"
         const val KEY_NAME = "name"
+        const val KEY_TOKEN = "token"
         const val DEFAULT_PORT = 8765
         const val POLL_MILLIS = 1_000L
         const val RETRY_MILLIS = 3_000L
