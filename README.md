@@ -37,7 +37,8 @@ Tips
 
 ## Card manager (web page)
 
-`manager/` is a small web page that does steps 1-2 above for you, and on Android also step 3.
+`manager/` is a small web page that does steps 1-2 above for you, and on Android also step 3. (The [companion app](#companion-app-for-the-parent)
+does the same from an Android phone.)
 Pick a song or a video (+ an optional picture, used as the song's artwork and on the printed card) and give the card a name. The page then:
 
 1. creates `Tap and Play/<name>/` in your Google Drive and uploads the files into it,
@@ -79,6 +80,47 @@ rest of your Drive, and Google needs no app review for it. Sign-in lasts about a
 asks again. A service account is not used: its key cannot be kept secret in a web page, and it has no Drive
 storage of its own on a personal Gmail account.
 
+## Companion app (for the parent)
+
+`companion/` is a second Android app, *Tap and Play Parent*, for the parent's own phone. It has two tabs:
+
+- **Player**: a remote control for the player phone: what is playing (name, paused or playing, position),
+  **Pause / Resume**, **Stop**, **volume** (- / slider / +) and **Play** for any of your cards. It only works while the
+  player phone is on Wi-Fi with the app open, and your phone is on the **same Wi-Fi**. Without Wi-Fi the player
+  works exactly as before; the companion just says it can't reach it.
+- **Cards**: the web manager's features: sign in with Google, **make a new card** (name, song or video, optional
+  picture), and the list of cards with **Play on player**, **Write to sticker** (with your phone's own NFC; no
+  Chrome needed), **Copy link** and **Remove**. It uses the same `Tap and Play/` folder and `cards.json` as the web
+  page, so cards made in either show up in both. Printing still happens on the web page (the app links to it).
+
+Build and install: `./gradlew :companion:installDebug` (or open the project in Android Studio and run `companion`).
+It is signed with the same checked-in `app/debug.keystore` as the player.
+
+**Finding the player.** The player announces itself on the Wi-Fi (mDNS / NSD, `_tapandplay._tcp`), so the companion
+finds it by itself and remembers it. Some routers block that (guest networks, "AP/client isolation"); then tap
+*Enter the player's address instead* and type the player phone's IP address (player phone: Settings -> Wi-Fi ->
+your network -> IP address). Giving the player a fixed IP in your router's DHCP settings keeps that working.
+
+**Google sign-in, one-time setup** (in addition to the web manager's setup below, in the **same** Google Cloud
+project, so both see the same files with the `drive.file` scope): *Credentials -> Create OAuth client ID ->
+Android*, package name `com.omrihak.nfccards.companion`, SHA-1
+`E8:BC:C9:F8:85:B5:19:3D:C1:33:F8:79:14:39:8A:FA:50:06:3A:67` (the checked-in debug key; check with
+`keytool -list -v -keystore app/debug.keystore -storepass android`). Nothing goes in the code: Android identifies
+the app by package name and signature. Your Gmail must be a test user on the consent screen, as for the web page.
+
+**Remote control API** (what the companion uses; the player serves it on port **8765**, local network only):
+
+| Request                                   | Does                                                         |
+|-------------------------------------------|--------------------------------------------------------------|
+| `GET /api/status`                         | `{"app":"tapandplay","state":"idle\|loading\|audio\|video","paused":false,"title":"...","card":"...","positionMs":0,"durationMs":0,"volume":7,"maxVolume":15}` |
+| `POST /api/play` `{"url":"<card link>"}`  | Plays a card's `content.json` link, exactly like tapping it  |
+| `POST /api/pause`, `/api/resume`, `/api/stop` | Pause, resume, stop (back to the idle screen)            |
+| `POST /api/volume` `{"level":7}` or `{"step":1}` / `{"step":-1}` | Sets the media volume, or moves it one step |
+
+Every call answers with the status. Try it from a computer on the same Wi-Fi:
+`curl http://<player-ip>:8765/api/status`. The player refuses requests from outside the local network, but there is
+no password: anyone on your Wi-Fi can pause the song. Use it on a home network you trust.
+
 ## Behaviour
 
 - Same card while it is playing: ignored. A different card: switches immediately.
@@ -88,7 +130,9 @@ storage of its own on a personal Gmail account.
   Admin card URIs work as QR codes too. In kiosk mode the camera permission is granted automatically.
 - Battery level is shown small in the top-right corner (the system status bar is hidden).
 - Anything that goes wrong (unknown tag, no internet, bad JSON, missing/unsupported media...) returns to the idle screen with a small wordless wobble. Details are in Logcat (tags `NfcReader`, `ContentResolver`, `MediaCache`, `MainViewModel`).
-- Volume follows the phone's volume.
+- Volume follows the phone's volume (which the companion app can change).
+- The companion app can pause, resume, stop and play cards over Wi-Fi; to the player that is the same as a double-tap,
+  a hold or a card tap.
 
 ## Drive notes
 
@@ -145,7 +189,9 @@ device owner are a new app build that calls `clearDeviceOwnerApp` or a factory r
   adb shell am start -n com.omrihak.nfccards/.MainActivity -a android.intent.action.VIEW -d "https://drive.google.com/file/d/<ID>/view"
   ```
   Run it again with a different URL to simulate a different card (admin card URIs work too). Watch what happens with
-  `adb logcat -s NfcReader ContentResolver MediaCache MainViewModel`.
+  `adb logcat -s NfcReader ContentResolver MediaCache MainViewModel Remote RemoteServer`.
+- **Simulate the companion** from a computer on the same Wi-Fi:
+  `curl -X POST -d '{"url":"<card link>"}' http://<player-ip>:8765/api/play`.
 - **Test the NFC read itself** with a second Android phone running an NDEF tag-emulator app, or buy a couple of NTAG215 stickers (a few dollars)
   and write the URL with an app such as NFC Tools.
 

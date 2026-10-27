@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "NfcCards"
-include(":app")
+include(":app", ":companion")

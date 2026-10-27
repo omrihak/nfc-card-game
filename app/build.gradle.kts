@@ -42,6 +42,10 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        // android.util.Log is called by code under test (RemoteServer); make it a no-op on the JVM.
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
