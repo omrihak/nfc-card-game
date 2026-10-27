@@ -12,8 +12,8 @@ android {
         applicationId = "com.omrihak.nfccards.companion"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = rootProject.extra["tapVersionCode"] as Int
+        versionName = rootProject.extra["tapVersionName"] as String
     }
 
     // Same checked-in key as the player: Google sign-in is tied to this key's SHA-1 (see README,
@@ -25,11 +25,21 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // One release key for both apps, from env (see README, "Releases"). Without it release builds are unsigned.
+        System.getenv("TAP_KEYSTORE_FILE")?.let { path ->
+            create("release") {
+                storeFile = rootProject.file(path)
+                storePassword = System.getenv("TAP_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("TAP_KEY_ALIAS")
+                keyPassword = System.getenv("TAP_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
     compileOptions {

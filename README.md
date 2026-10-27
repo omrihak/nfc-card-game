@@ -202,6 +202,30 @@ Install a ready APK with `adb install -r tap-and-play.apk`. Debug builds are sig
 `app/debug.keystore`, so a build from any computer can update the installed app (important in kiosk mode,
 where the app can't be uninstalled).
 Pure-logic unit tests (`GoogleDriveUrlResolver`, `ContentMetadata`): `./gradlew testDebugUnitTest`.
+CI (`.github/workflows/ci.yml`) runs the tests and a debug build on every pull request and push to `master`.
+
+### Releases
+
+Parents install release builds from GitHub Releases: `tap-and-play.apk` (player) and `tap-and-play-parent.apk`
+(companion), always at `https://github.com/omrihak/nfc-card-game/releases/latest/download/<name>`. Both are signed
+with one release key (provisioning and self-update rely on that).
+
+1. Once: `scripts/make-release-key.sh` creates `release.jks` (gitignored) and prints everything below. Back up the
+   keystore and password: without them installed phones can never be updated.
+2. Add repository secrets (Settings -> Secrets and variables -> Actions): `TAP_KEYSTORE_BASE64`,
+   `TAP_KEYSTORE_PASSWORD`, `TAP_KEY_ALIAS`, `TAP_KEY_PASSWORD`.
+3. Google Cloud Console, same project: add another *Android* OAuth client for `com.omrihak.nfccards.companion` with the
+   release key's SHA-1, or the companion's Google sign-in fails in release builds.
+4. Put the printed signature checksum in `manager/config.js` as `releaseSignatureChecksum` (QR provisioning).
+
+Cut a release: `git tag v0.2.0 && git push origin v0.2.0`. `.github/workflows/release.yml` builds both apps with
+versionName `0.2.0` and versionCode `200` (`vX.Y.Z` -> X*10000 + Y*100 + Z; tags must only go up) and publishes them.
+Locally: `TAP_KEYSTORE_FILE=release.jks TAP_KEYSTORE_PASSWORD=... TAP_KEY_ALIAS=tap-and-play TAP_KEY_PASSWORD=...
+./gradlew assembleRelease -PtapVersion=0.2.0`; without `TAP_KEYSTORE_FILE` release APKs are built unsigned.
+
+Migrating from debug builds: a phone running the debug-signed player can't be updated to a release build (signature
+mismatch). In device-owner mode tap the `tapandplay://release` admin card, uninstall the app, then install the release
+build and set it up again. Same for the companion (uninstall, reinstall).
 
 ## Layout
 

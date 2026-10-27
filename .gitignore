@@ -7,3 +7,5 @@ local.properties
 captures/
 *.apk
 .kotlin/
+# Release key (scripts/make-release-key.sh); never commit it.
+*.jks
