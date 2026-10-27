@@ -3,6 +3,10 @@ package com.omrihak.nfccards.companion
 import com.omrihak.nfccards.companion.cards.Card
 import com.omrihak.nfccards.companion.cards.CardStore
 import com.omrihak.nfccards.companion.cards.Drive
+import com.omrihak.nfccards.companion.player.AdminStickers
+import com.omrihak.nfccards.companion.player.NotPairedException
+import com.omrihak.nfccards.companion.player.Pairing
+import com.omrihak.nfccards.companion.player.PlayerError
 import com.omrihak.nfccards.companion.player.PlayerStatus
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -33,6 +37,53 @@ class CompanionTest {
         assertFalse(s.isPlayingSomething)
         assertNull(s.title)
         assertNull(s.positionMs)
+    }
+
+    @Test fun parsesAdminFieldsAndOlderPlayers() {
+        val s = PlayerStatus.parse(
+            """{"app":"tapandplay","state":"idle","volume":3,"maxVolume":15,"version":"0.2.0","deviceOwner":true,
+               "update":"failed","updateMessage":"Install failed: x"}""",
+        )
+        assertEquals("0.2.0", s.version)
+        assertTrue(s.deviceOwner)
+        assertEquals("failed", s.update)
+        assertFalse(s.isUpdating)
+        assertEquals("Install failed: x", s.updateMessage)
+        val old = PlayerStatus.parse("""{"app":"tapandplay","state":"idle"}""")
+        assertNull(old.version)
+        assertFalse(old.deviceOwner)
+        assertEquals("idle", old.update)
+    }
+
+    @Test fun recognisesAnUnpairedPlayer() {
+        assertTrue(PlayerStatus.failure(401, """{"app":"tapandplay","paired":false,"error":"Not paired"}""") is NotPairedException)
+        // Something else answering 401 is not a player waiting to pair.
+        assertTrue(PlayerStatus.failure(401, """{"error":"nope"}""") is PlayerError)
+        assertTrue(PlayerStatus.failure(401, "<html>") is PlayerError)
+        val conflict = PlayerStatus.failure(409, """{"error":"Only in kiosk mode"}""")
+        assertTrue(conflict is PlayerError)
+        assertEquals("Only in kiosk mode", conflict.message)
+        assertEquals("Player answered 500", PlayerStatus.failure(500, "").message)
+    }
+
+    @Test fun pairingTokensAreLongRandomAndUrlSafe() {
+        val tokens = (1..50).map { Pairing.newToken() }
+        tokens.forEach { assertTrue(it, Regex("[A-Za-z0-9_-]{43}").matches(it)) }
+        assertEquals(tokens.size, tokens.toSet().size)
+    }
+
+    @Test fun pairingUriAndQr() {
+        val token = Pairing.newToken()
+        assertEquals("tapandplay://pair?token=$token", Pairing.uri(token))
+        val qr = Pairing.qr(Pairing.uri(token))
+        assertTrue(qr.width >= 25 && qr.width == qr.height)
+    }
+
+    @Test fun adminStickersUseThePlayersUris() {
+        assertEquals("tapandplay://settings", AdminStickers.settings.contentUrl)
+        assertEquals("tapandplay://release", AdminStickers.release.contentUrl)
+        assertEquals(Pairing.uri("t"), AdminStickers.pairing("t").contentUrl)
+        assertEquals(AdminStickers.TYPE, AdminStickers.release.type)
     }
 
     @Test(expected = IOException::class)

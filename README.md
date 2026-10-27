@@ -87,7 +87,10 @@ storage of its own on a personal Gmail account.
 - **Player**: a remote control for the player phone: what is playing (name, paused or playing, position),
   **Pause / Resume**, **Stop**, **volume** (- / slider / +) and **Play** for any of your cards. It only works while the
   player phone is on Wi-Fi with the app open, and your phone is on the **same Wi-Fi**. Without Wi-Fi the player
-  works exactly as before; the companion just says it can't reach it.
+  works exactly as before; the companion just says it can't reach it. Folded away under **Parent tools**:
+  **Open settings on player**, **Update player** (shows the player's version and the update's progress),
+  **Remove kiosk (release)** (asks first: it gives up device owner for good) and **Write admin sticker**
+  (settings / release) as a backup.
 - **Cards**: the web manager's features: sign in with Google, **make a new card** (name, song or video, optional
   picture), and the list of cards with **Play on player**, **Write to sticker** (with your phone's own NFC; no
   Chrome needed), **Copy link** and **Remove**. It uses the same `Tap and Play/` folder and `cards.json` as the web
@@ -101,6 +104,19 @@ finds it by itself and remembers it. Some routers block that (guest networks, "A
 *Enter the player's address instead* and type the player phone's IP address (player phone: Settings -> Wi-Fi ->
 your network -> IP address). Giving the player a fixed IP in your router's DHCP settings keeps that working.
 
+**Pairing.** The player only obeys phones it has been paired with. The first time the companion finds the player,
+it shows a big QR code: hold it up to the player's camera (the small circle in its corner). The player bounces
+with a green ring and the companion turns into the remote control. (No camera? *Or write it to a sticker* puts the
+same code on an NFC sticker; tap that on the player once.) The code is `tapandplay://pair?token=<secret>`, made
+once per companion install. The player remembers the last 4 phones it was paired with, so both parents can pair.
+Treat the code like a key: anyone who scans it can pair.
+
+**Updating the player.** *Update player* makes the player download
+`https://github.com/omrihak/nfc-card-game/releases/latest/download/tap-and-play.apk` and install it silently,
+then restart. That only works in full kiosk mode (device owner); otherwise the companion says so, and you install
+the new APK on the player by hand. The update must be signed with the same key as the installed app and have a
+higher version code.
+
 **Google sign-in, one-time setup** (in addition to the web manager's setup below, in the **same** Google Cloud
 project, so both see the same files with the `drive.file` scope): *Credentials -> Create OAuth client ID ->
 Android*, package name `com.omrihak.nfccards.companion`, SHA-1
@@ -108,18 +124,25 @@ Android*, package name `com.omrihak.nfccards.companion`, SHA-1
 `keytool -list -v -keystore app/debug.keystore -storepass android`). Nothing goes in the code: Android identifies
 the app by package name and signature. Your Gmail must be a test user on the consent screen, as for the web page.
 
-**Remote control API** (what the companion uses; the player serves it on port **8765**, local network only):
+**Remote control API** (what the companion uses; the player serves it on port **8765**, local network only).
+Every request needs `Authorization: Bearer <token>`, with a token the player was paired with (see *Pairing*).
+Without one, or with a wrong one, every `/api/` request answers **401** `{"app":"tapandplay","paired":false,"error":"..."}`,
+so the companion still knows it found a player and offers to pair.
 
 | Request                                   | Does                                                         |
 |-------------------------------------------|--------------------------------------------------------------|
-| `GET /api/status`                         | `{"app":"tapandplay","state":"idle\|loading\|audio\|video","paused":false,"title":"...","card":"...","positionMs":0,"durationMs":0,"volume":7,"maxVolume":15}` |
+| `GET /api/status`                         | `{"app":"tapandplay","paired":true,"state":"idle\|loading\|audio\|video","paused":false,"title":"...","card":"...","positionMs":0,"durationMs":0,"volume":7,"maxVolume":15,"version":"0.1.0","deviceOwner":true,"update":"idle\|downloading\|installing\|failed","updateMessage":"..."}` |
 | `POST /api/play` `{"url":"<card link>"}`  | Plays a card's `content.json` link, exactly like tapping it  |
 | `POST /api/pause`, `/api/resume`, `/api/stop` | Pause, resume, stop (back to the idle screen)            |
 | `POST /api/volume` `{"level":7}` or `{"step":1}` / `{"step":-1}` | Sets the media volume, or moves it one step |
+| `POST /api/admin/settings`                | Same as the settings admin card: leaves kiosk and opens Settings |
+| `POST /api/admin/release`                 | Same as the release admin card: gives up device owner for good |
+| `POST /api/admin/update`                  | Starts a self-update in the background (progress in `update`); **409** if not device owner |
 
-Every call answers with the status. Try it from a computer on the same Wi-Fi:
-`curl http://<player-ip>:8765/api/status`. The player refuses requests from outside the local network, but there is
-no password: anyone on your Wi-Fi can pause the song. Use it on a home network you trust.
+Every successful call answers with the status. Try it from a computer on the same Wi-Fi:
+`curl -H "Authorization: Bearer <token>" http://<player-ip>:8765/api/status`. To make a token for testing, pair one
+with adb (debug builds): `adb shell am start -n com.omrihak.nfccards/.MainActivity -a android.intent.action.VIEW -d
+"tapandplay://pair?token=<token>"`, where the token is 32 or more random letters, digits, `-` or `_`.
 
 ## Behaviour
 
@@ -171,15 +194,17 @@ Survives reboots. Setup, once, over adb:
    ```
 3. Open the app. It locks itself in.
 
-Getting out uses **admin cards**: write one of these as a URI record on a spare sticker (NFC Tools: *Custom URL/URI*)
-and keep it away from the toddler.
+Getting out is done from the **companion app** (pair it first, see *Companion app*): *Parent tools ->
+Open settings on player* or *Remove kiosk (release)*. As a backup, for when there is no Wi-Fi or your phone is lost,
+keep **admin cards**: the companion writes them (*Parent tools -> Write admin sticker*), or write one of these as a URI
+record on a spare sticker with any NFC app (NFC Tools: *Custom URL/URI*). Keep them away from the toddler.
 
 | Card URI                 | Does                                                                     |
 |--------------------------|--------------------------------------------------------------------------|
 | `tapandplay://settings`  | Leaves kiosk and opens Settings. Press Home (or open the app) to lock again. |
 | `tapandplay://release`   | Gives up device owner for good and opens Settings, so the app can be uninstalled. |
 
-Make the admin cards *before* enabling device owner: without a release card, the only other ways out of
+Pair the companion, or make a release card, *before* enabling device owner: otherwise the only other ways out of
 device owner are a new app build that calls `clearDeviceOwnerApp` or a factory reset.
 
 ## Testing without NFC cards
@@ -191,7 +216,8 @@ device owner are a new app build that calls `clearDeviceOwnerApp` or a factory r
   Run it again with a different URL to simulate a different card (admin card URIs work too). Watch what happens with
   `adb logcat -s NfcReader ContentResolver MediaCache MainViewModel Remote RemoteServer`.
 - **Simulate the companion** from a computer on the same Wi-Fi:
-  `curl -X POST -d '{"url":"<card link>"}' http://<player-ip>:8765/api/play`.
+  `curl -X POST -H "Authorization: Bearer <token>" -d '{"url":"<card link>"}' http://<player-ip>:8765/api/play`
+  (pair the token first, see *Remote control API*).
 - **Test the NFC read itself** with a second Android phone running an NDEF tag-emulator app, or buy a couple of NTAG215 stickers (a few dollars)
   and write the URL with an app such as NFC Tools.
 

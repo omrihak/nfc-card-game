@@ -45,6 +45,7 @@ import androidx.lifecycle.lifecycleScope
 import com.omrihak.nfccards.companion.cards.Card as CardEntry
 import com.omrihak.nfccards.companion.cards.CardsViewModel
 import com.omrihak.nfccards.companion.cards.StickerWriter
+import com.omrihak.nfccards.companion.player.AdminStickers
 import com.omrihak.nfccards.companion.player.Connection
 import com.omrihak.nfccards.companion.player.RemoteViewModel
 import com.omrihak.nfccards.companion.ui.CardsScreen
@@ -198,6 +199,8 @@ private fun CompanionApp(
                 status = status,
                 cards = cards,
                 signedIn = signedIn,
+                pairingToken = remote.token,
+                canWriteStickers = stickers.isAvailable,
                 onPause = remote::pause,
                 onResume = remote::resume,
                 onStop = remote::stop,
@@ -205,6 +208,10 @@ private fun CompanionApp(
                 onVolumeStep = remote::stepVolume,
                 onPlay = playCard,
                 onConnectManually = remote::connectManually,
+                onOpenSettings = remote::openSettingsOnPlayer,
+                onUpdate = remote::updatePlayer,
+                onRelease = remote::releasePlayer,
+                onWriteSticker = stickers::begin,
                 modifier = modifier,
             )
         } else {
@@ -237,7 +244,9 @@ private fun StickerDialog(state: StickerWriter.State, onDismiss: () -> Unit) {
         StickerWriter.State.Idle -> return
         is StickerWriter.State.Waiting ->
             "Write \"${state.card.name}\"" to "Hold a sticker flat against the back of this phone, near the camera."
-        is StickerWriter.State.Done -> "Written ✓" to "The sticker now plays \"${state.card.name}\"."
+        is StickerWriter.State.Done -> "Written ✓" to
+            if (state.card.type == AdminStickers.TYPE) "Keep it somewhere safe, away from the toddler."
+            else "The sticker now plays \"${state.card.name}\"."
         is StickerWriter.State.Failed -> "Couldn't write the sticker" to state.reason
     }
     AlertDialog(
