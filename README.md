@@ -62,6 +62,9 @@ printer shifts the second side, measure the shift on one test sheet and enter it
 (remembered in the browser). Card size and margins are constants at the top of `manager/print.js`. The PDF is
 written directly (no PDF library); QR codes come from `manager/vendor/qrcode.js` (qrcode-generator 1.4.4, MIT).
 
+**Setting up a player phone.** `manager/setup.html` (linked from the main page, no sign-in) shows the QR code
+that turns a factory-reset phone into a locked player and prints the parent cards; see [Kiosk mode](#kiosk-mode-the-app-is-the-only-thing-on-the-phone).
+
 **Hosting.** Settings -> Pages -> *Deploy from a branch*, default branch, `/ (root)`. The page is then at
 `https://omrihak.github.io/nfc-card-game/manager/`. To try it locally: `cd manager && python3 -m http.server 8000`
 and open `http://localhost:8000`.
@@ -151,36 +154,59 @@ rate-limit them; that is a risk mainly for the first download.
 
 ## Kiosk mode (the app is the only thing on the phone)
 
-The app can be the phone's home screen (launcher), so it starts on boot and Home always comes back to it.
-Pick one level:
+In kiosk mode the app is **device owner**: it is the permanent home screen and runs in lock task mode (no home,
+recents, notification shade or power menu). The lock screen is off, and the screen stays on while charging. This
+survives reboots.
 
-**Simple: launcher only.** Press Home, choose *Tap and Play*, *Always* (or Settings -> Apps -> Default apps -> Home app).
-Set Settings -> Security -> Screen lock -> **None**, so the phone boots and wakes straight into the app
-(the app also shows over a swipe lock screen). A determined toddler can still pull down the notification shade
-or open recents, so combine it with **screen pinning** (Settings -> Security -> Pin windows, then pin from recents).
+**Set it up with a QR code** (recommended, no computer needed). The QR code comes from the companion app's **Setup**
+tab, or from the web page [`manager/setup.html`](https://omrihak.github.io/nfc-card-game/manager/setup.html) for
+parents without the companion. Both show these steps:
 
-**Full: device owner.** The app becomes the permanent home screen, runs in lock task mode (no home, recents,
-notification shade or power menu), the lock screen is disabled and the screen stays on while charging.
-Survives reboots. Setup, once, over adb:
+1. **First, make the parent cards** (below). Once the phone is locked, they are the only way back into it, short of
+   a factory reset.
+2. Charge the old phone, then factory reset it: Settings -> System -> Reset -> *Erase all data* (Samsung: General
+   management -> Reset). Use Settings, not the recovery buttons: after a recovery reset, Factory Reset Protection
+   asks for the old Google account.
+3. On the very first welcome screen, tap the same spot **6 times**. A QR reader opens. Older phones first ask
+   for Wi-Fi, to download the reader.
+4. Scan the QR code. Fill in the Wi-Fi name and password above it first if you want the phone to join Wi-Fi by
+   itself. They only go into the QR code: the web page never sends them anywhere.
+5. Wait. Android downloads the player APK from the latest GitHub release (`tap-and-play.apk`), checks its signature,
+   makes it device owner, and the app opens and locks itself in.
 
-1. Remove every account from the phone (Settings -> Accounts), or factory reset it and skip sign-in.
-   Android refuses a device owner while accounts exist.
-2. Install the app, then:
-   ```
-   adb shell dpm set-device-owner com.omrihak.nfccards/.kiosk.AdminReceiver
-   ```
-3. Open the app. It locks itself in.
+Requirements and notes:
+- QR provisioning needs Android 7.0 or newer. The six taps only work on the first setup screen, before anything
+  else is chosen: if nothing happens, factory reset again and tap at once. Some phones ask to pick a language first;
+  try both.
+- Don't add a Google account during setup. Android refuses a device owner while the phone has accounts.
+- The QR code holds the SHA-256 checksum of the key the downloaded APK is signed with. The companion takes it from its
+  own signature (the player and companion are signed with the same release key). The web page reads it from
+  `releaseSignatureChecksum` in `manager/config.js`, which the maintainer fills in from the output of
+  `scripts/make-release-key.sh`; until then the page says so. A debug-signed companion warns that its QR code only
+  works with a player signed with the debug key, which is not the APK on GitHub Releases.
+- The QR code keeps all system apps (Settings, camera...) and skips encryption, so old unencrypted phones don't spend
+  ages encrypting with a reboot halfway through. Android 10+ phones are always encrypted anyway.
 
-Getting out uses **admin cards**: write one of these as a URI record on a spare sticker (NFC Tools: *Custom URL/URI*)
-and keep it away from the toddler.
+Getting out uses **parent (admin) cards**. Print both from `manager/setup.html` (*Make PDF of parent cards*, no
+sign-in; text front with "KEEP AWAY FROM CHILD", QR codes on the back). You can also write one of these as a URI
+record on a spare sticker (NFC Tools: *Custom URL/URI*). Keep them away from the toddler.
 
 | Card URI                 | Does                                                                     |
 |--------------------------|--------------------------------------------------------------------------|
 | `tapandplay://settings`  | Leaves kiosk and opens Settings. Press Home (or open the app) to lock again. |
 | `tapandplay://release`   | Gives up device owner for good and opens Settings, so the app can be uninstalled. |
 
-Make the admin cards *before* enabling device owner: without a release card, the only other ways out of
-device owner are a new app build that calls `clearDeviceOwnerApp` or a factory reset.
+Without a release card, the only other ways out of device owner are a new app build that calls
+`clearDeviceOwnerApp`, or a factory reset.
+
+**Fallback: adb.** With a computer: remove every account from the phone (Settings -> Accounts), or factory reset it
+and skip sign-in. Install the app, run
+`adb shell dpm set-device-owner com.omrihak.nfccards/.kiosk.AdminReceiver`, and open the app.
+
+**Lighter: launcher only (no device owner).** Press Home, choose *Tap and Play*, *Always* (or Settings -> Apps ->
+Default apps -> Home app). Set Settings -> Security -> Screen lock -> **None**. A toddler can still pull down the
+notification shade or open recents, so add **screen pinning** (Settings -> Security -> Pin windows, then pin from
+recents).
 
 ## Testing without NFC cards
 
