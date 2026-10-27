@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Player Setup</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Set up a player phone</h1>
+    <a href="./">Cards</a>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Before you start</h2>
+      <ul class="setup-notes">
+        <li>
+          <strong>Print the parent cards first</strong> (below). Once the phone is locked, they are the only way back
+          into its settings, short of another factory reset.
+        </li>
+        <li>Don't add a Google account to the old phone. Android refuses to set it up this way if it has one.</li>
+        <li>Everything on the old phone is erased.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Steps</h2>
+      <ol class="setup-steps">
+        <li>Charge the old phone.</li>
+        <li>
+          Factory reset it: Settings → System → Reset → <em>Erase all data</em>
+          (on Samsung: General management → Reset).
+        </li>
+        <li>
+          On the very first welcome screen, tap the same spot <strong>6 times</strong> quickly. A QR code reader opens
+          (older phones may ask for Wi-Fi first to download it).
+        </li>
+        <li>Scan the QR code below.</li>
+        <li>Wait. The phone downloads Tap and Play, installs it and locks itself into it. This takes a few minutes.</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>Wi-Fi for the player</h2>
+      <p class="hint">
+        Optional. Without it, the phone asks for Wi-Fi during setup. What you type here only goes into the QR code,
+        in this browser; it is never sent anywhere.
+      </p>
+      <form id="wifi-form" autocomplete="off">
+        <label>Wi-Fi name
+          <input id="ssid" maxlength="32" autocapitalize="off" spellcheck="false">
+        </label>
+        <label>Security
+          <select id="security">
+            <option value="WPA">WPA / WPA2</option>
+            <option value="WEP">WEP</option>
+            <option value="NONE">Open (no password)</option>
+          </select>
+        </label>
+        <label id="password-label">Wi-Fi password
+          <input id="password" type="password" maxlength="63" autocomplete="off">
+        </label>
+        <label class="inline"><input id="show-password" type="checkbox"> Show password</label>
+        <label class="inline"><input id="hidden" type="checkbox"> Hidden network</label>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Scan this with the reset phone</h2>
+      <p id="not-configured" class="error" hidden>
+        The setup QR code isn't available yet: the app's signing key hasn't been published here
+        (<code>releaseSignatureChecksum</code> in <code>config.js</code>). Ask the maintainer, or use the
+        <em>Setup</em> tab of the companion app.
+      </p>
+      <div id="setup-qr"></div>
+    </section>
+
+    <section class="card">
+      <h2>Parent cards</h2>
+      <p class="hint">
+        Two cards that only a grown-up should have. Tap one on the player (or hold up its QR code):
+      </p>
+      <ul class="setup-notes">
+        <li><strong>Settings</strong>: leaves the locked mode and opens Settings. Press Home to lock again.</li>
+        <li><strong>Release</strong>: unlocks the phone for good, so the app can be uninstalled.</li>
+      </ul>
+      <p class="hint">
+        The PDF is one A4 sheet: print it double-sided, <strong>flip on long edge</strong>, at
+        <strong>Actual size / 100%</strong>, and cut along the marks. Or write <code>tapandplay://settings</code> and
+        <code>tapandplay://release</code> as URI records on two NFC stickers.
+      </p>
+      <div class="print-actions">
+        <button id="print-parent" type="button">Make PDF of parent cards</button>
+        <span id="print-status" class="hint"></span>
+      </div>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="vendor/qrcode.js"></script>
+  <script src="print.js"></script>
+  <script src="setup.js"></script>
+</body>
+</html>

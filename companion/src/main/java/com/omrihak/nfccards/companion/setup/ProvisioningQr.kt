@@ -65,7 +65,8 @@ object ProvisioningQr {
     /** QR modules with a 4-module quiet zone. */
     fun matrix(text: String): BitMatrix {
         val hints = mutableMapOf<EncodeHintType, Any>(
-            EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,
+            // Shown on a clean screen: low error correction means fewer, bigger modules, which read best.
+            EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.L,
             EncodeHintType.MARGIN to 4,
         )
         // Plain ASCII needs no charset marker, which the oldest setup wizards might not understand.

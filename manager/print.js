@@ -50,6 +50,7 @@ const CardPrint = (() => {
 
   /**
    * cards: [{ name, type, contentUrl, image (HTMLImageElement or null) }], in print order.
+   * A parent (admin) card has parent: { title, text } instead of type and image; see drawParentFront.
    * offset: { x, y } in mm, shifts the back pages. Returns a PDF Blob.
    */
   async function makePdf(cards, offset = { x: 0, y: 0 }, onProgress = () => {}) {
@@ -113,6 +114,7 @@ const CardPrint = (() => {
    * isn't square gets white bands). Without one, a coloured card with the name.
    */
   function drawFront(card) {
+    if (card.parent) return drawParentFront(card);
     const canvas = newCanvas(CARD_W, CARD_H);
     const ctx = canvas.getContext("2d");
     const { width: w, height: h } = canvas;
@@ -147,6 +149,32 @@ const CardPrint = (() => {
       ctx.fillText("♪", cx, h * 0.42);
     }
     drawName(ctx, card.name, cx, h * 0.75, w - px(10), px(9));
+    return canvas;
+  }
+
+  /** Parent card: plain text that says what it does and that it is not a toy. No picture to tempt a child. */
+  function drawParentFront(card) {
+    const canvas = newCanvas(CARD_W, CARD_H);
+    const ctx = canvas.getContext("2d");
+    const { width: w, height: h } = canvas;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, w, h);
+    const inset = px(QR_EDGE);
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = px(1.2);
+    ctx.strokeRect(inset, inset, w - 2 * inset, h - 2 * inset);
+    const textWidth = w - px(14);
+    ctx.fillStyle = "#222";
+    drawName(ctx, "Parent card", w / 2, h * 0.2, textWidth, px(7));
+    drawName(ctx, card.parent.title, w / 2, h * 0.38, textWidth, px(13));
+    ctx.fillStyle = "#555";
+    drawName(ctx, card.parent.text, w / 2, h * 0.54, textWidth, px(4.5));
+    // Warning band.
+    const band = { x: inset + px(4), y: h * 0.68, w: w - 2 * inset - px(8), h: px(14) };
+    ctx.fillStyle = "#c62828";
+    ctx.fillRect(band.x, band.y, band.w, band.h);
+    ctx.fillStyle = "#fff";
+    drawName(ctx, "KEEP AWAY FROM CHILD", w / 2, band.y + band.h / 2, band.w - px(4), px(6));
     return canvas;
   }
 
