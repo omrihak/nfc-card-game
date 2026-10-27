@@ -33,7 +33,9 @@ Tips
   link on the sticker stays valid. Metadata is refreshed in the background whenever the phone is online
   (the new version is used on the next tap). Media is cached forever by its URL, so a *different* song
   needs a *different* file (new link).
-- Tap each card once while online; from then on it works offline and starts instantly.
+- Tap each card once while online; from then on it works offline and starts instantly. The download
+  finishes even if the card is taken away, another card is tapped or playback is stopped. When a card's
+  `content.json` changes, the phone keeps playing the old song until the new one is fully downloaded.
 
 ## Card manager (web page)
 

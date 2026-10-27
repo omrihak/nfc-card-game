@@ -43,11 +43,11 @@ class MediaCache(private val dir: File) {
     }
 
     /** Re-downloads [url]; [validate] may throw to reject the new file and keep the old one. */
-    suspend fun refresh(url: String, validate: (File) -> Unit): File = withContext(Dispatchers.IO) {
+    suspend fun refresh(url: String, validate: suspend (File) -> Unit): File = withContext(Dispatchers.IO) {
         download(url, validate)
     }
 
-    private suspend fun download(url: String, validate: ((File) -> Unit)?): File {
+    private suspend fun download(url: String, validate: (suspend (File) -> Unit)?): File {
         val dest = fileFor(url)
         var lastError: Exception? = null
         for (candidate in GoogleDriveUrlResolver.downloadCandidates(url)) {
@@ -73,7 +73,7 @@ class MediaCache(private val dir: File) {
         throw ContentException(ErrorKind.DOWNLOAD_FAILED, "Only HTML pages were returned for $url", lastError)
     }
 
-    private suspend fun fetchTo(url: String, dest: File, validate: ((File) -> Unit)?) {
+    private suspend fun fetchTo(url: String, dest: File, validate: (suspend (File) -> Unit)?) {
         val tmp = File.createTempFile("dl_", ".part", dir)
         try {
             val conn = URL(url).openConnection() as HttpURLConnection

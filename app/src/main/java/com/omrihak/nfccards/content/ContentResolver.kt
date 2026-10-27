@@ -6,6 +6,8 @@ import android.util.Log
 import com.omrihak.nfccards.media.MediaCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -20,11 +22,18 @@ import java.net.URI
  *
  * Offline-first: metadata that is already cached is used immediately and refreshed in the background
  * (picked up on the next scan); media and artwork are cached forever by URL.
+ *
+ * A card that was scanned once while online must keep working offline, so:
+ * - downloads run in [backgroundScope], not in the scan: tapping another card or stopping mid-download
+ *   does not throw away the half-cached card;
+ * - a background refresh only replaces the cached metadata once the media it points to is on disk.
  */
 class ContentResolver(
     private val cache: MediaCache,
     private val backgroundScope: CoroutineScope,
 ) {
+
+    private val inFlight = HashMap<String, Deferred<File>>()
 
     suspend fun resolve(cardUrl: String): ResolvedContent = withContext(Dispatchers.IO) {
         requireHttpUrl(cardUrl)
@@ -33,18 +42,31 @@ class ContentResolver(
 
         when (metadata.type) {
             ContentMetadata.TYPE_AUDIO -> coroutineScope {
-                val media = async { cache.get(metadata.media) }
+                val media = async { fetch(metadata.media) }
                 // Artwork is optional: any failure just means the default artwork is shown.
                 val artwork = async { metadata.image?.let { loadArtwork(it) } }
                 ResolvedContent.Audio(media.await(), artwork.await(), metadata.media)
             }
-            ContentMetadata.TYPE_VIDEO -> ResolvedContent.Video(cache.get(metadata.media), metadata.media)
+            ContentMetadata.TYPE_VIDEO -> ResolvedContent.Video(fetch(metadata.media), metadata.media)
             else -> throw ContentException(ErrorKind.UNSUPPORTED, "Unsupported content type ${metadata.type}")
         }
     }
 
-    /** Drops a cached media file, e.g. after the player could not decode it, so it is re-downloaded next time. */
-    fun evict(mediaUrl: String) = cache.evict(mediaUrl)
+    /**
+     * Re-downloads a cached media file, e.g. after the player could not decode it. The old file is only
+     * replaced once the new one is complete, so when offline the card keeps whatever it had.
+     */
+    fun redownload(mediaUrl: String) {
+        backgroundScope.launch {
+            try {
+                cache.refresh(mediaUrl) {}
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.d(TAG, "Re-download skipped for $mediaUrl: ${e.message}")
+            }
+        }
+    }
 
     private suspend fun loadMetadata(cardUrl: String): ContentMetadata {
         cache.cached(cardUrl)?.let { file ->
@@ -59,24 +81,32 @@ class ContentResolver(
         }
 
         val file = try {
-            cache.get(cardUrl)
+            fetch(cardUrl)
         } catch (e: ContentException) {
             if (e.kind == ErrorKind.NO_INTERNET || e.kind == ErrorKind.INVALID_URL) throw e
             throw ContentException(ErrorKind.METADATA_UNAVAILABLE, "Could not fetch metadata from $cardUrl", e)
         }
-        try {
-            return ContentMetadata.parse(file.readText())
+        val metadata = try {
+            ContentMetadata.parse(file.readText())
         } catch (e: ContentException) {
             cache.evict(cardUrl)
             throw e
         }
+        // Start the media downloads right away, so they finish even if this scan is cancelled first.
+        prefetch(metadata)
+        return metadata
     }
 
     private fun refreshInBackground(cardUrl: String) {
         backgroundScope.launch {
             try {
-                // The new file replaces the cached one only if it parses.
-                cache.refresh(cardUrl) { ContentMetadata.parse(it.readText()) }
+                // The new file replaces the cached one only if it parses and its media is on disk, so a card
+                // whose song was changed keeps playing the old one offline until the new one is downloaded.
+                cache.refresh(cardUrl) { file ->
+                    val metadata = ContentMetadata.parse(file.readText())
+                    prefetch(metadata)
+                    fetch(metadata.media)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -85,9 +115,26 @@ class ContentResolver(
         }
     }
 
+    private fun prefetch(metadata: ContentMetadata) {
+        startFetch(metadata.media)
+        metadata.image?.let { startFetch(it) }
+    }
+
+    /** The cached file for [url], downloading it first if needed. Cancelling the caller does not cancel the download. */
+    private suspend fun fetch(url: String): File = cache.cached(url) ?: startFetch(url).await()
+
+    /** Starts (or joins) a download of [url] in [backgroundScope]; failures surface only to whoever awaits it. */
+    private fun startFetch(url: String): Deferred<File> = synchronized(inFlight) {
+        inFlight[url] ?: backgroundScope.async(start = CoroutineStart.LAZY) { cache.get(url) }.also { download ->
+            inFlight[url] = download
+            download.invokeOnCompletion { synchronized(inFlight) { inFlight.remove(url, download) } }
+            download.start()
+        }
+    }
+
     private suspend fun loadArtwork(url: String): Bitmap? {
         return try {
-            val file = cache.get(url)
+            val file = fetch(url)
             decode(file) ?: run {
                 Log.w(TAG, "Artwork $url is not a decodable image")
                 cache.evict(url)

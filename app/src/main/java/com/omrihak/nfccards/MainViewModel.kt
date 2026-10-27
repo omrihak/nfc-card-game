@@ -139,8 +139,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun onPlaybackError(error: PlaybackException) {
         Log.w(TAG, "Playback failed (${ErrorKind.UNSUPPORTED}): ${error.errorCodeName}", error)
         _debugMessages.tryEmit("${ErrorKind.UNSUPPORTED}: playback failed (${error.errorCodeName})")
-        // The cached file may be corrupt: drop it so the next tap downloads it again.
-        currentMediaUrl?.let { resolver.evict(it) }
+        // The cached file may be corrupt: fetch a fresh copy (kept only if the download completes, so a
+        // card never loses its offline copy because of a glitch).
+        currentMediaUrl?.let { resolver.redownload(it) }
         resetToIdle()
     }
 
