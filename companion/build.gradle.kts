@@ -57,6 +57,9 @@ dependencies {
     // Google sign-in for Drive (AuthorizationClient).
     implementation("com.google.android.gms:play-services-auth:21.2.0")
 
+    // QR code for setting up a player phone.
+    implementation("com.google.zxing:core:3.5.3")
+
     testImplementation("junit:junit:4.13.2")
     // Android's org.json is stubbed in JVM unit tests; use the real implementation there.
     testImplementation("org.json:json:20240303")
