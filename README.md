@@ -261,7 +261,7 @@ Install a ready APK with `adb install -r tap-and-play.apk`. Debug builds are sig
 `app/debug.keystore`, so a build from any computer can update the installed app (important in kiosk mode,
 where the app can't be uninstalled).
 Pure-logic unit tests (`GoogleDriveUrlResolver`, `ContentMetadata`): `./gradlew testDebugUnitTest`.
-CI (`.github/workflows/ci.yml`) runs the tests and a debug build on every pull request and push to `master`.
+CI (`.github/workflows/ci.yml`) runs the tests and a debug build on every pull request and push to `main`.
 
 ### Releases
 
