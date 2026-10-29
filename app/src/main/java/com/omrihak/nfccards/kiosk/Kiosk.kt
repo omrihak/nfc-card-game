@@ -14,12 +14,15 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import com.omrihak.nfccards.MainActivity
+import com.omrihak.nfccards.remote.Pairing
 
 /** Exists so the app can be made device owner (see README, "Kiosk mode"). */
 class AdminReceiver : DeviceAdminReceiver() {
     /** QR-code provisioning finished: open the app, which locks itself in right away. */
     override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
         Log.i("Kiosk", "Provisioned as device owner")
+        // Android 7-9 (10+ already did this in PolicyComplianceActivity; storing it twice is harmless).
+        if (Pairing(context).onProvisioned(intent)) Log.i("Kiosk", "Paired with the companion that made the setup QR code")
         Kiosk.setAsHome(context)
         // Device owners may start activities from the background.
         context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

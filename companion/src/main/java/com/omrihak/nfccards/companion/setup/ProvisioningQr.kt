@@ -21,6 +21,9 @@ object ProvisioningQr {
     /** Checksum of the checked-in app/debug.keystore certificate (see [isDebugKey]). */
     const val DEBUG_KEY_CHECKSUM = "slEXBZ79eV16nRC5HFZqGrKSOYTx5gCkeZ8Niz8FCH8"
 
+    /** Key of the pairing token in the admin extras; the player's PairingTokens.PROVISIONING_TOKEN_KEY. */
+    const val PAIR_TOKEN_KEY = "pair_token"
+
     private const val EXTRA = "android.app.extra.PROVISIONING_"
 
     enum class Security { WPA, WEP, NONE }
@@ -30,8 +33,10 @@ object ProvisioningQr {
     /**
      * The provisioning JSON. [checksum] is that of the key the player APK is signed with ([checksumOf]).
      * [wifi] is left out when null or without a name; the phone then asks for Wi-Fi itself.
+     * [pairToken], when given, goes to the player in the admin extras, so it starts out paired with this
+     * phone and no pairing QR code is needed.
      */
-    fun json(checksum: String, wifi: Wifi?): String {
+    fun json(checksum: String, wifi: Wifi?, pairToken: String? = null): String {
         val fields = linkedMapOf<String, Any>(
             "DEVICE_ADMIN_COMPONENT_NAME" to ADMIN_COMPONENT,
             "DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION" to APK_URL,
@@ -50,6 +55,8 @@ object ProvisioningQr {
             if (wifi.security != Security.NONE && wifi.password.isNotEmpty()) fields["WIFI_PASSWORD"] = wifi.password
             if (wifi.hidden) fields["WIFI_HIDDEN"] = true
         }
+        // Android hands this bundle unchanged to the player's provisioning activities and AdminReceiver.
+        if (pairToken != null) fields["ADMIN_EXTRAS_BUNDLE"] = RawJson("{${quote(PAIR_TOKEN_KEY)}:${quote(pairToken)}}")
         return fields.entries.joinToString(",", "{", "}") { (key, value) ->
             "\"$EXTRA$key\":" + if (value is String) quote(value) else value.toString()
         }
@@ -72,6 +79,11 @@ object ProvisioningQr {
         // Plain ASCII needs no charset marker, which the oldest setup wizards might not understand.
         if (text.any { it.code > 0x7e }) hints[EncodeHintType.CHARACTER_SET] = "UTF-8"
         return QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, 0, 0, hints)
+    }
+
+    /** A value that is already JSON (an object), written as it is. */
+    private class RawJson(val json: String) {
+        override fun toString() = json
     }
 
     private fun quote(s: String) = buildString {

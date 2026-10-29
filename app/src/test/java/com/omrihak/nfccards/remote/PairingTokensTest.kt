@@ -29,6 +29,13 @@ class PairingTokensTest {
         assertNull(PairingTokens.tokenFrom("not a uri at all"))
     }
 
+    @Test fun validatesBareTokens() {
+        assertTrue(PairingTokens.isValid(token))
+        assertFalse(PairingTokens.isValid("short"))
+        assertFalse(PairingTokens.isValid("$token/"))
+        assertFalse(PairingTokens.isValid(""))
+    }
+
     @Test fun keepsTheNewestFour() {
         var tokens = emptyList<String>()
         for (i in 1..5) tokens = PairingTokens.add(tokens, "t$i")

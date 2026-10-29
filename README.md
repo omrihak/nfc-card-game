@@ -115,6 +115,8 @@ with a green ring and the companion turns into the remote control. (No camera? *
 same code on an NFC sticker; tap that on the player once.) The code is `tapandplay://pair?token=<secret>`, made
 once per companion install. The player remembers the last 4 phones it was paired with, so both parents can pair.
 Treat the code like a key: anyone who scans it can pair.
+A player set up with this companion's *Setup* QR code (see *Kiosk mode*) is already paired with it: the setup QR
+carries the same token, so that companion skips this step. Other parents still pair once as above.
 
 **Updating the player.** *Update player* makes the player download
 `https://github.com/omrihak/nfc-card-game/releases/latest/download/tap-and-play.apk` and install it silently,
@@ -197,7 +199,9 @@ parents without the companion. Both show these steps:
 4. Scan the QR code. Fill in the Wi-Fi name and password above it first if you want the phone to join Wi-Fi by
    itself. They only go into the QR code: the web page never sends them anywhere.
 5. Wait. Android downloads the player APK from the latest GitHub release (`tap-and-play.apk`), checks its signature,
-   makes it device owner, and the app opens and locks itself in.
+   makes it device owner, and the app opens and locks itself in. A QR code from the companion also pairs the player with that
+   companion (its pairing token rides in `PROVISIONING_ADMIN_EXTRAS_BUNDLE` as `pair_token`), so the companion goes
+   straight to the remote control. The web page's QR code doesn't pair; pair the companion afterwards.
 
 Requirements and notes:
 - QR provisioning needs Android 7.0 or newer. The six taps only work on the first setup screen, before anything
@@ -209,6 +213,7 @@ Requirements and notes:
   `releaseSignatureChecksum` in `manager/config.js`, which the maintainer fills in from the output of
   `scripts/make-release-key.sh`; until then the page says so. A debug-signed companion warns that its QR code only
   works with a player signed with the debug key, which is not the APK on GitHub Releases.
+- The companion's QR code holds its pairing token (and the Wi-Fi password, if filled in): keep it to yourself.
 - The QR code keeps all system apps (Settings, camera...) and skips encryption, so old unencrypted phones don't spend
   ages encrypting with a reboot halfway through. Android 10+ phones are always encrypted anyway.
 

@@ -60,7 +60,7 @@ private const val WEB_SETUP_URL = "https://omrihak.github.io/nfc-card-game/manag
  * scan the QR code shown here. See README, "Kiosk mode".
  */
 @Composable
-fun SetupScreen(modifier: Modifier = Modifier) {
+fun SetupScreen(pairingToken: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     // The player is signed with the same key as this app, so this app's own certificate is the player's.
     val checksum = remember { ownChecksum(context) }
@@ -84,7 +84,8 @@ fun SetupScreen(modifier: Modifier = Modifier) {
             "On the very first welcome screen, tap the same spot 6 times quickly. A QR code reader opens " +
                 "(older phones may ask for Wi-Fi first to download it).",
             "Scan the QR code below.",
-            "Wait. The phone downloads Tap and Play, installs it and locks itself into it. This takes a few minutes.",
+            "Wait. The phone downloads Tap and Play, installs it and locks itself into it. This takes a few minutes. " +
+                "It is already paired with this phone: the Player tab finds it on the Wi-Fi by itself.",
         ).forEachIndexed { i, step ->
             Row {
                 Text("${i + 1}.", fontWeight = FontWeight.Bold, modifier = Modifier.widthIn(min = 24.dp))
@@ -155,8 +156,13 @@ fun SetupScreen(modifier: Modifier = Modifier) {
                     color = MaterialTheme.colorScheme.error,
                 )
             }
-            val json = ProvisioningQr.json(checksum, ProvisioningQr.Wifi(ssid.trim(), password, security, hidden))
+            val json = ProvisioningQr.json(checksum, ProvisioningQr.Wifi(ssid.trim(), password, security, hidden), pairingToken)
             Text("Scan this with the reset phone", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+            Text(
+                "It also pairs the player with this phone, so keep it to yourself, like a key.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             QrCode(json)
         }
     }

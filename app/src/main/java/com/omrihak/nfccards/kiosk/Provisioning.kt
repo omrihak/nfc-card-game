@@ -6,6 +6,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import com.omrihak.nfccards.remote.Pairing
 
 /*
  * QR-code provisioning (see README, "Kiosk mode"): on a freshly reset phone, the setup wizard downloads
@@ -30,10 +31,13 @@ class GetProvisioningModeActivity : Activity() {
 /**
  * "Set your policies now." The app is device owner by this point. Making it the home screen here means
  * that whatever comes after the setup wizard is this app, which then locks itself in ([Kiosk.enter]).
+ * The companion's pairing token is stored here too, before the app first opens, so the companion finds
+ * the player already paired.
  */
 class PolicyComplianceActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Pairing(this).onProvisioned(intent)
         try {
             Kiosk.setAsHome(this)
         } catch (e: SecurityException) {

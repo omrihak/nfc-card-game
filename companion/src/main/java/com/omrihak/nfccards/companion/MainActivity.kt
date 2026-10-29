@@ -236,7 +236,7 @@ private fun CompanionApp(
                 modifier = modifier,
             )
         } else {
-            SetupScreen(modifier)
+            SetupScreen(pairingToken = remote.token, modifier = modifier)
         }
     }
 

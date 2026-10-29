@@ -63,6 +63,16 @@ class ProvisioningQrTest {
         assertEquals("WEP", json.getString(extra("WIFI_SECURITY_TYPE")))
     }
 
+    @Test fun addsPairingTokenAsAdminExtras() {
+        val token = "Abc_-0123456789abcdefghijklmnopqrstuvwxyz0"
+        val json = JSONObject(ProvisioningQr.json(checksum, Wifi("Home", "secret"), token))
+        val extras = json.getJSONObject(extra("ADMIN_EXTRAS_BUNDLE"))
+        assertEquals(token, extras.getString("pair_token"))
+        assertEquals(1, extras.length())
+        assertEquals("Home", json.getString(extra("WIFI_SSID")))
+        assertFalse(JSONObject(ProvisioningQr.json(checksum, null)).has(extra("ADMIN_EXTRAS_BUNDLE")))
+    }
+
     @Test fun checksumIsBase64UrlOfCertificateSha256() {
         // The checked-in debug key; same as `keytool -exportcert ... | openssl dgst -sha256 -binary | base64url`.
         val store = KeyStore.getInstance("PKCS12").apply {
@@ -82,6 +92,8 @@ class ProvisioningQrTest {
             val text = ProvisioningQr.json(checksum, wifi)
             assertEquals(text, decode(text))
         }
+        val withToken = ProvisioningQr.json(checksum, Wifi("Home", "secret"), "x".repeat(43))
+        assertEquals(withToken, decode(withToken))
     }
 
     private fun decode(text: String): String {
