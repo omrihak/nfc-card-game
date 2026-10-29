@@ -1,25 +1,76 @@
 name: Release
 
-# git tag v1.2.3 && git push origin v1.2.3 -> GitHub Release v1.2.3 with both signed APKs.
+# Every push to main -> GitHub Release vX.Y.Z with both signed APKs. The bump since the last v* tag:
+#   major: a commit message says [major] or BREAKING
+#   minor: the player or companion changed (app/, companion/), or a commit message says [minor]
+#   patch: anything else (docs, web manager, CI), or a commit message says [patch]
+# A hand-pushed tag (git tag v1.2.3 && git push origin v1.2.3) releases exactly that version.
 on:
   push:
+    branches: [main]
     tags: ['v*']
 
 permissions:
   contents: write
+
+# One release at a time, in push order, so two pushes never pick the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the tags and history the version is worked out from
+
+      - name: Version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git tag --points-at HEAD | grep -q '^v'; then
+            echo "This commit is already released"; exit 0
+          fi
+          last=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          IFS=. read -r major minor patch <<< "${last#v}"
+          major=${major:-0} minor=${minor:-0} patch=${patch:-0}
+          range=${last:+$last..}HEAD
+          messages=$(git log --format=%B "$range")
+          if grep -qE '\[major\]|BREAKING' <<< "$messages"; then
+            bump=major
+          elif grep -qF '[patch]' <<< "$messages"; then
+            bump=patch
+          elif grep -qF '[minor]' <<< "$messages" || [ -n "$(git diff --name-only "${last:-$(git rev-list --max-parents=0 HEAD)}" HEAD -- app companion)" ]; then
+            bump=minor
+          else
+            bump=patch
+          fi
+          # versionCode is major*10000 + minor*100 + patch, so minor and patch stop at 99.
+          [ $bump = patch ] && [ $patch -ge 99 ] && bump=minor
+          [ $bump = minor ] && [ $minor -ge 99 ] && bump=major
+          case $bump in
+            major) major=$((major + 1)) minor=0 patch=0 ;;
+            minor) minor=$((minor + 1)) patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+          echo "$last -> v$major.$minor.$patch ($bump)"
+          echo "tag=v$major.$minor.$patch" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-java@v4
+        if: steps.version.outputs.tag
         with:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.version.outputs.tag
 
       - name: Decode release key
+        if: steps.version.outputs.tag
         env:
           TAP_KEYSTORE_BASE64: ${{ secrets.TAP_KEYSTORE_BASE64 }}
         run: |
@@ -27,20 +78,25 @@ jobs:
           echo "$TAP_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
 
       - name: Build
+        if: steps.version.outputs.tag
         env:
+          TAG: ${{ steps.version.outputs.tag }}
           TAP_KEYSTORE_FILE: ${{ runner.temp }}/release.jks
           TAP_KEYSTORE_PASSWORD: ${{ secrets.TAP_KEYSTORE_PASSWORD }}
           TAP_KEY_ALIAS: ${{ secrets.TAP_KEY_ALIAS }}
           TAP_KEY_PASSWORD: ${{ secrets.TAP_KEY_PASSWORD }}
-        run: ./gradlew testReleaseUnitTest assembleRelease -PtapVersion="${GITHUB_REF_NAME#v}"
+        run: ./gradlew testReleaseUnitTest assembleRelease -PtapVersion="${TAG#v}"
 
       # Fixed asset names: the apps' self-update and the provisioning QR use releases/latest/download/<name>.
+      # Creating the tag here (with the workflow's own token) doesn't start this workflow again.
       - name: Publish
+        if: steps.version.outputs.tag
         env:
+          TAG: ${{ steps.version.outputs.tag }}
           GH_TOKEN: ${{ github.token }}
         run: |
           rm -f "$RUNNER_TEMP/release.jks"
           cp app/build/outputs/apk/release/app-release.apk tap-and-play.apk
           cp companion/build/outputs/apk/release/companion-release.apk tap-and-play-parent.apk
-          gh release create "$GITHUB_REF_NAME" tap-and-play.apk tap-and-play-parent.apk \
-            --title "$GITHUB_REF_NAME" --generate-notes
+          gh release create "$TAG" tap-and-play.apk tap-and-play-parent.apk \
+            --target "$GITHUB_SHA" --title "$TAG" --generate-notes

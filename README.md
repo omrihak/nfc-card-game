@@ -277,8 +277,12 @@ with one release key (provisioning and self-update rely on that).
    release key's SHA-1, or the companion's Google sign-in fails in release builds.
 4. Put the printed signature checksum in `manager/config.js` as `releaseSignatureChecksum` (QR provisioning).
 
-Cut a release: `git tag v0.2.0 && git push origin v0.2.0`. `.github/workflows/release.yml` builds both apps with
-versionName `0.2.0` and versionCode `200` (`vX.Y.Z` -> X*10000 + Y*100 + Z; tags must only go up) and publishes them.
+Every push to `main` is a release: `.github/workflows/release.yml` picks the next version after the newest `v*` tag,
+builds both apps and publishes them under that tag. The bump is **major** if a new commit message says `[major]` or
+`BREAKING`, **minor** if the player or companion changed (`app/`, `companion/`), else **patch** (docs, web manager,
+CI); `[minor]` or `[patch]` in a commit message overrides that. `v0.3.1` becomes versionName `0.3.1` and versionCode
+`301` (`vX.Y.Z` -> X*10000 + Y*100 + Z, so minor and patch stop at 99 and roll over to the next level). To release
+a specific version instead, push a tag: `git tag v1.0.0 && git push origin v1.0.0`; tags must only go up.
 Locally: `TAP_KEYSTORE_FILE=release.jks TAP_KEYSTORE_PASSWORD=... TAP_KEY_ALIAS=tap-and-play TAP_KEY_PASSWORD=...
 ./gradlew assembleRelease -PtapVersion=0.2.0`; without `TAP_KEYSTORE_FILE` release APKs are built unsigned.
 
