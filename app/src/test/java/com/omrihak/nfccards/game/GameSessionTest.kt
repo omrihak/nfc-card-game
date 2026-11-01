@@ -82,8 +82,9 @@ class GameSessionTest {
         val s = session()
         s.start()
         waitFor("question") { events.any { it.startsWith("say:en:Where") } }
+        val target = asked()
         events.clear()
-        s.onCard("k:" + asked())
+        s.onCard("k:$target")
         waitFor("next question") { events.any { it.startsWith("say:en:Where") } }
         assertEquals("hint:null", events[0])
         assertEquals("star", events[1])
