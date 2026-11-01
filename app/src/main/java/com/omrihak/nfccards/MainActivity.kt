@@ -39,6 +39,7 @@ import com.omrihak.nfccards.qr.QrScanner
 import com.omrihak.nfccards.ui.AudioScreen
 import com.omrihak.nfccards.ui.BatteryIndicator
 import com.omrihak.nfccards.ui.CameraBubble
+import com.omrihak.nfccards.ui.GameScreen
 import com.omrihak.nfccards.ui.IdleScreen
 import com.omrihak.nfccards.ui.VideoScreen
 import kotlinx.coroutines.launch
@@ -172,15 +173,17 @@ private fun App(viewModel: MainViewModel, qrScanner: QrScanner) {
     val state by viewModel.state.collectAsState()
     val problems by viewModel.problems.collectAsState()
     val pairings by viewModel.pairings.collectAsState()
+    val stars by viewModel.stars.collectAsState()
 
     BackHandler(enabled = true) { /* the toddler can't leave */ }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         when (val s = state) {
             UiState.Idle, UiState.Loading ->
-                IdleScreen(busy = s == UiState.Loading, problems = problems, pairings = pairings)
+                IdleScreen(busy = s == UiState.Loading, problems = problems, pairings = pairings, stars = stars)
             is UiState.Audio -> AudioScreen(artwork = s.artwork, player = viewModel.player, onStop = viewModel::stop)
             UiState.Video -> VideoScreen(player = viewModel.player, onStop = viewModel::stop)
+            is UiState.Game -> GameScreen(hint = s.hint, stars = stars, onStop = viewModel::stop)
         }
         if (qrScanner.isRunning) {
             CameraBubble(

@@ -1,6 +1,7 @@
 # Plan: games, starting with "Find the card"
 
-Status: **designed, not started.** Decisions below were made with the parent; the open ones are marked.
+Status: **core built** (card format, game logic, speech, player screens, stars). Not built yet: the manager and
+companion forms for making game cards. Decisions below were made with the parent; the open ones are marked.
 
 Goal: let the child learn words (Hebrew and English) by playing with the cards, with almost no screen time. A new
 kind of card starts a **game**; the first game is **Find the card**: the phone asks "Where is the dog?" (in English or
@@ -42,7 +43,7 @@ Game card:
 ```json
 {
   "type": "game", "game": "find-card", "name": "Animals (English)",
-  "lang": "en", "rounds": 5, "choices": 3,
+  "lang": "en", "rounds": 5,
   "deck": ["<dog content.json link>", "<cat content.json link>"],
   "say": {
     "intro": "Let's play!",
@@ -57,6 +58,10 @@ Game card:
 `{word}` is replaced per card (using `ask` for the question, `text` otherwise). `say` has built-in defaults per
 language, so a game card can be as small as `type`, `game`, `lang` and `deck`. The deck is in the JSON, so the sticker
 still holds one short URL.
+
+There is no "choices" setting: **the deck is the set of cards on the floor**, so its size is how many choices she has
+(2 to 4 cards suits a small child). `rounds` defaults to 5, or the deck size if smaller. A target does not repeat until
+every card was asked once.
 
 ## A round
 
@@ -87,11 +92,12 @@ still holds one short URL.
 
 ## Steps
 
-1. Format and parsing (`type: "game"`, `words`) with tests.
-2. `Game` interface, `FindCardGame`, `Speaker` fake, tests for the round logic.
-3. Android `Speaker` over TextToSpeech; view-model wiring; stars on the idle screen.
+1. Done: format and parsing (`type: "game"`, `words`) with tests.
+2. Done: `Game` interface, `FindCardGame`, `GameSession` (speech, hints, stars, idle repeats), tests.
+3. Done (not yet run on a phone): Android `Speaker` over TextToSpeech; view-model wiring; stars on the idle screen;
+   game screen with the hint picture.
 4. Manager and companion forms.
-5. README: card format, game cards, setup note below.
+5. Done: README section; the setup note below.
 
 ## Setup note
 
@@ -102,6 +108,6 @@ an offline engine (e.g. sherpa-onnx with a Hebrew model) is the fallback; not pl
 
 ## Open questions
 
-- Best default number of choices per round for her age (2 vs 3).
+- How many cards to lay out per game for her age (the deck size, 2 to 4).
 - Whether to show anything on screen at all during the question (currently: no).
 - A `he>en` mode needs both languages on every card in the deck; the manager should warn when one is missing.

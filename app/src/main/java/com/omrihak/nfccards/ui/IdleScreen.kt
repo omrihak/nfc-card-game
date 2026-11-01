@@ -20,9 +20,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -30,10 +33,11 @@ import kotlin.math.sin
  * "Tap a card here": ripples around a bobbing card with a smiley, on a friendly landscape.
  * No text, no controls. [busy] speeds up the ripples while a card's content is being fetched;
  * a change in [problems] gives the card a short wordless wobble, a change in [pairings] (a parent's
- * phone was paired) a short happy bounce with a green ring.
+ * phone was paired) a short happy bounce with a green ring. [stars] (earned in games) shows as a row of
+ * ten stars along the bottom that fills up and starts over; nothing is drawn while there are none.
  */
 @Composable
-fun IdleScreen(busy: Boolean, problems: Int, pairings: Int = 0) {
+fun IdleScreen(busy: Boolean, problems: Int, pairings: Int = 0, stars: Int = 0) {
     val transition = rememberInfiniteTransition(label = "idle")
     val pulse = transition.animateFloat(
         initialValue = 0f,
@@ -107,5 +111,31 @@ fun IdleScreen(busy: Boolean, problems: Int, pairings: Int = 0) {
             size = Size(r, r * 0.8f),
             style = Stroke(width = r * 0.1f, cap = StrokeCap.Round),
         )
+
+        if (stars > 0) {
+            val filled = (stars - 1) % STAR_SLOTS + 1
+            val radius = unit * 0.045f
+            val gap = radius * 2.6f
+            val left = size.width / 2f - gap * (STAR_SLOTS - 1) / 2f
+            for (i in 0 until STAR_SLOTS) {
+                val color = if (i < filled) Color(0xFFFFC93C) else Color.White.copy(alpha = 0.45f)
+                drawStar(Offset(left + gap * i, size.height * 0.9f), radius, color)
+            }
+        }
     }
+}
+
+private const val STAR_SLOTS = 10
+
+private fun DrawScope.drawStar(center: Offset, outerRadius: Float, color: Color) {
+    val path = Path()
+    for (i in 0 until 10) {
+        val r = if (i % 2 == 0) outerRadius else outerRadius * 0.45f
+        val angle = -PI / 2 + i * PI / 5
+        val x = center.x + (r * cos(angle)).toFloat()
+        val y = center.y + (r * sin(angle)).toFloat()
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+    drawPath(path, color)
 }

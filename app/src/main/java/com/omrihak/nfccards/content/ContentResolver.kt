@@ -3,11 +3,14 @@ package com.omrihak.nfccards.content
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
+import com.omrihak.nfccards.game.CardKey
+import com.omrihak.nfccards.game.GameCard
 import com.omrihak.nfccards.media.MediaCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -39,8 +42,57 @@ class ContentResolver(
                 ResolvedContent.Audio(media.await(), artwork.await(), metadata.media, metadata.name)
             }
             ContentMetadata.TYPE_VIDEO -> ResolvedContent.Video(cache.get(metadata.media), metadata.media, metadata.name)
+            ContentMetadata.TYPE_GAME -> resolveGame(metadata)
             else -> throw ContentException(ErrorKind.UNSUPPORTED, "Unsupported content type ${metadata.type}")
         }
+    }
+
+    /**
+     * Loads every card of a game's deck (metadata, picture and any recorded words) so the game can run offline.
+     * A deck card that cannot be loaded is left out; the game itself decides whether enough cards remain.
+     */
+    private suspend fun resolveGame(metadata: ContentMetadata): ResolvedContent.Game = coroutineScope {
+        val spec = metadata.game ?: throw ContentException(ErrorKind.MALFORMED_METADATA, "Game card without settings")
+        val languages = setOf(spec.lang.ask, spec.lang.answer)
+        val loaded = spec.deck.map { link -> async { loadDeckCard(link, languages) } }.awaitAll().filterNotNull()
+        ResolvedContent.Game(
+            spec = spec,
+            cards = loaded.map { it.card },
+            hints = loaded.mapNotNull { c -> c.artwork?.let { c.card.url to it } }.toMap(),
+            clips = loaded.flatMap { it.clips.toList() }.toMap(),
+            title = metadata.name,
+        )
+    }
+
+    private class DeckCard(val card: GameCard, val artwork: Bitmap?, val clips: Map<String, File>)
+
+    private suspend fun loadDeckCard(link: String, languages: Set<String>): DeckCard? = try {
+        val metadata = loadMetadata(link)
+        val words = metadata.words
+        if (metadata.type == ContentMetadata.TYPE_GAME || words.isEmpty) {
+            Log.w(TAG, "Deck card $link has no words; skipped")
+            null
+        } else coroutineScope {
+            val artwork = async { metadata.image?.let { loadArtwork(it) } }
+            val clips = languages.mapNotNull { words[it]?.audio }.distinct().map { url ->
+                async {
+                    try {
+                        url to cache.get(url)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Recorded word unavailable ($url): ${e.message}; speech is used instead")
+                        null
+                    }
+                }
+            }
+            DeckCard(GameCard(CardKey.of(link), words), artwork.await(), clips.awaitAll().filterNotNull().toMap())
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "Deck card $link could not be loaded: ${e.message}")
+        null
     }
 
     /** Drops a cached media file, e.g. after the player could not decode it, so it is re-downloaded next time. */

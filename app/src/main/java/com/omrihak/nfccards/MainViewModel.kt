@@ -11,11 +11,17 @@ import com.omrihak.nfccards.content.ContentException
 import com.omrihak.nfccards.content.ContentResolver
 import com.omrihak.nfccards.content.ErrorKind
 import com.omrihak.nfccards.content.ResolvedContent
+import com.omrihak.nfccards.game.CardKey
+import com.omrihak.nfccards.game.ClipPlayer
+import com.omrihak.nfccards.game.GameSession
+import com.omrihak.nfccards.game.Games
 import com.omrihak.nfccards.media.MediaCache
 import com.omrihak.nfccards.media.PlayerController
 import com.omrihak.nfccards.remote.Pairing
 import com.omrihak.nfccards.remote.Remote
 import com.omrihak.nfccards.remote.RemoteApi
+import com.omrihak.nfccards.speech.TextToSpeechSpeaker
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,8 +35,10 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONObject
 import java.io.File
+import kotlin.coroutines.resume
 
 sealed interface UiState {
     data object Idle : UiState
@@ -38,6 +46,8 @@ sealed interface UiState {
     data object Loading : UiState
     data class Audio(val artwork: Bitmap?) : UiState
     data object Video : UiState
+    /** A game is running (see [com.omrihak.nfccards.game.Game]); [hint] is a picture to show, if any. */
+    data class Game(val hint: Bitmap?) : UiState
 }
 
 /**
@@ -74,6 +84,56 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
     private val _adminCards = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val adminCards: SharedFlow<String> = _adminCards.asSharedFlow()
 
+    /** Stars the child has earned in games, kept across restarts. Shown on the idle screen. */
+    private val prefs = app.getSharedPreferences("tap_and_play", android.content.Context.MODE_PRIVATE)
+    private val _stars = MutableStateFlow(prefs.getInt(KEY_STARS, 0))
+    val stars: StateFlow<Int> = _stars.asStateFlow()
+
+    // ---- Games ----
+    private val speaker = TextToSpeechSpeaker(app)
+    private var gameSession: GameSession? = null
+    private var gameHints: Map<String, Bitmap> = emptyMap()
+    private var gameClips: Map<String, File> = emptyMap()
+    private var pendingClip: CancellableContinuation<Boolean>? = null
+
+    private val clipPlayer = ClipPlayer { url ->
+        val file = gameClips[url]
+        if (file == null) {
+            false
+        } else {
+            suspendCancellableCoroutine<Boolean> { cont ->
+                pendingClip = cont
+                cont.invokeOnCancellation {
+                    if (pendingClip === cont) {
+                        pendingClip = null
+                        player.stop()
+                    }
+                }
+                player.play(file)
+            }
+        }
+    }
+
+    private val gameListener = object : GameSession.Listener {
+        override fun onHint(cardKey: String?) {
+            if (gameSession != null) _state.value = UiState.Game(cardKey?.let { gameHints[it] })
+        }
+
+        override fun onStar() {
+            val total = _stars.value + 1
+            _stars.value = total
+            prefs.edit().putInt(KEY_STARS, total).apply()
+        }
+
+        override fun onEnded() = stop()
+
+        override fun onProblem(error: Exception) {
+            Log.w(TAG, "Game stopped: ${error.message}", error)
+            _debugMessages.tryEmit("GAME: ${error.message}")
+            resetToIdle()
+        }
+    }
+
     private var loadJob: Job? = null
     private var currentCard: String? = null
     private var currentMediaUrl: String? = null
@@ -103,6 +163,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
             return
         }
         val card = uri.trim()
+
+        // During a game a tap is an answer, except the game's own card, which ends it.
+        gameSession?.let { session ->
+            if (card == currentCard) stop() else session.onCard(CardKey.of(card))
+            return
+        }
 
         val state = _state.value
         val alreadyActive = card == currentCard &&
@@ -134,6 +200,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
                         _state.value = UiState.Video
                         player.play(content.file)
                     }
+                    is ResolvedContent.Game -> {
+                        // Throws ContentException (handled below) if the deck cannot make this game.
+                        val game = Games.create(content.spec, content.cards)
+                        gameHints = content.hints
+                        gameClips = content.clips
+                        _state.value = UiState.Game(null)
+                        gameSession = GameSession(game, speaker, clipPlayer, viewModelScope, gameListener).also { it.start() }
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -150,6 +224,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
     }
 
     private fun onPlaybackEnded() {
+        pendingClip?.let {
+            pendingClip = null
+            it.resume(true)
+            return
+        }
         if (_state.value is UiState.Audio || _state.value is UiState.Video) {
             Log.i(TAG, "Playback finished")
             stop()
@@ -159,6 +238,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
     /** Hold (4 s), or the companion app: stop whatever is playing and go back to the idle screen. */
     override fun stop() {
         loadJob?.cancel()
+        endGame()
         player.stop()
         currentCard = null
         currentMediaUrl = null
@@ -168,7 +248,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
 
     // ---- Companion app (RemoteApi.Player); called on the main thread ----
 
-    override fun play(cardUrl: String) = handleScan(cardUrl)
+    override fun play(cardUrl: String) {
+        // The parent playing a card from the companion app is not an answer: it ends any game first.
+        if (gameSession != null) stop()
+        handleScan(cardUrl)
+    }
 
     override fun pause() = player.pause()
 
@@ -184,6 +268,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
                 UiState.Loading -> "loading"
                 is UiState.Audio -> "audio"
                 UiState.Video -> "video"
+                is UiState.Game -> "game"
             },
         )
         json.put("paused", (state is UiState.Audio || state is UiState.Video) && !player.playWhenReady)
@@ -200,6 +285,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
     }
 
     private fun onPlaybackError(error: PlaybackException) {
+        pendingClip?.let {
+            // A recorded word that cannot be played: the game says it with speech instead.
+            Log.w(TAG, "Recorded word failed (${error.errorCodeName}); using speech")
+            pendingClip = null
+            it.resume(false)
+            return
+        }
         Log.w(TAG, "Playback failed (${ErrorKind.UNSUPPORTED}): ${error.errorCodeName}", error)
         _debugMessages.tryEmit("${ErrorKind.UNSUPPORTED}: playback failed (${error.errorCodeName})")
         // The cached file may be corrupt: drop it so the next tap downloads it again.
@@ -208,6 +300,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
     }
 
     private fun resetToIdle() {
+        endGame()
         player.stop()
         currentCard = null
         currentMediaUrl = null
@@ -220,17 +313,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
         _problems.value += 1
     }
 
+    private fun endGame() {
+        gameSession?.cancel()
+        gameSession = null
+        gameHints = emptyMap()
+        gameClips = emptyMap()
+        pendingClip = null
+    }
+
     /** Activity left the foreground (screen off, another app): don't keep playing in the dark. */
-    fun onBackground() = player.pause()
+    fun onBackground() {
+        player.pause()
+        if (gameSession != null) stop()
+    }
 
     override fun onCleared() {
         remote.stop()
         loadJob?.cancel()
         player.release()
+        speaker.release()
         appScope.cancel()
     }
 
     private companion object {
         const val TAG = "MainViewModel"
+        const val KEY_STARS = "stars"
     }
 }

@@ -151,6 +151,46 @@ Every successful call answers with the status. Try it from a computer on the sam
 with adb (debug builds): `adb shell am start -n com.omrihak.nfccards/.MainActivity -a android.intent.action.VIEW -d
 "tapandplay://pair?token=<token>"`, where the token is 32 or more random letters, digits, `-` or `_`.
 
+## Games (learn words by playing)
+
+A card with `"type": "game"` starts a game. The first game is **Find the card**: the phone asks "Where is the dog?"
+(or "איפה הכלב?"), the child finds the dog card among the cards in front of her and taps it. Right: a cheer, the word,
+a star. Wrong: "That's the cat. Try again!" and the question again, with no penalty; after two wrong tries the dog's
+picture shows on screen. Nothing tapped for a while: the question is repeated, and after a few repeats the game ends.
+Tap the game card again, or hold the screen for 4 seconds, to end it. Stars show along the bottom of the idle screen.
+
+The phone **speaks text from the cards** (Android text-to-speech); nothing is recorded. Setup on the player phone:
+Settings -> General management -> Text-to-speech -> preferred engine **Google**, and download the English and Hebrew
+voice data there. (With a factory-reset kiosk phone this is a manual step after setup.)
+
+**Word cards** are ordinary audio/video cards with a `words` field saying how the card is spoken in each language.
+`ask` is the form used inside a question (Hebrew's "ה" prefix); it defaults to `text`. A word can optionally carry
+an `audio` link, a recording that is played instead of the synthesized voice.
+
+```json
+{ "type": "audio", "media": "<share link>", "image": "<share link>", "name": "Dog",
+  "words": { "en": { "text": "dog" }, "he": { "text": "כלב", "ask": "הכלב" } } }
+```
+
+**The game card** lists the deck: the word cards that are on the floor. The deck size is how many choices she has
+(2 to 4 suits a small child).
+
+```json
+{ "type": "game", "game": "find-card", "name": "Animals",
+  "lang": "en", "rounds": 5,
+  "deck": ["<dog content.json link>", "<cat content.json link>", "<cow content.json link>"] }
+```
+
+- `lang`: `"en"`, `"he"`, or `"he>en"` (asks in Hebrew, and says the English word when she is right).
+  Make one game card per language from the same deck.
+- `rounds`: default 5, or the deck size if smaller. A card is not asked twice until all were asked once.
+- `say` (optional): replace what is said. Keys `intro`, `ask`, `correct`, `wrong`, `tryAgain`, `finish`;
+  `{word}` is replaced with the card's word. Built-in phrases exist for `en` and `he`; another language needs all six.
+- Cards in the deck without words in the game's language are skipped; a game needs at least 2.
+- Tapping a game card downloads the whole deck once (the usual loading animation); after that it works offline.
+
+More games can be added later as other `game` values; see [docs/plans/find-the-card-game.md](docs/plans/find-the-card-game.md).
+
 ## Behaviour
 
 - Same card while it is playing: ignored. A different card: switches immediately.
@@ -298,9 +338,12 @@ qr/QrScanner             front-camera QR reader (CameraX + ZXing)
 content/ContentMetadata  parses content.json leniently
 content/GoogleDriveUrlResolver
 content/ContentResolver  card URL -> metadata -> local files (offline-first)
+content/Words, GameSpec  the `words` of a card and the settings of a game card
+game/                    Game interface, FindCardGame (pure logic), GameSession (speech, hints, stars)
+speech/                  Speaker interface and the Android text-to-speech engine
 media/MediaCache         download-to-disk cache, atomic writes
 media/PlayerController   the one ExoPlayer (Media3), audio and video
-ui/                      IdleScreen, AudioScreen, VideoScreen
+ui/                      IdleScreen, AudioScreen, VideoScreen, GameScreen
 kiosk/Kiosk              device-owner lock task, admin cards
 MainViewModel            card URI in, UI state out; NFC knows nothing about media
 manager/                 web page for making cards in Google Drive (not part of the app)
