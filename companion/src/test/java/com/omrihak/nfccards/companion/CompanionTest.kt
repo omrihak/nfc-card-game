@@ -123,4 +123,53 @@ class CompanionTest {
         assertEquals("https://drive.google.com/file/d/q/view?usp=sharing", Drive.shareLink("q"))
         assertEquals("'it\\'s'", Drive.quote("it's"))
     }
+
+    @Test fun wordCardContentIsWhatThePlayerReads() {
+        val words = CardStore.wordsJson(
+            mapOf(
+                "en" to CardStore.Word(" dog "),
+                "he" to CardStore.Word("כלב", " הכלב "),
+                "fr" to CardStore.Word("   "),
+            ),
+        )
+        val json = JSONObject(
+            CardStore.contentJson("word", null, "https://i", "Dog", "t", JSONObject().put("words", words)),
+        )
+        assertEquals("word", json.getString("type"))
+        assertFalse(json.has("media"))
+        assertEquals("https://i", json.getString("image"))
+        assertEquals("dog", json.getJSONObject("words").getJSONObject("en").getString("text"))
+        assertEquals("הכלב", json.getJSONObject("words").getJSONObject("he").getString("ask"))
+        assertFalse(json.getJSONObject("words").getJSONObject("en").has("ask"))
+        assertFalse(json.getJSONObject("words").has("fr"))
+        assertEquals("Dog", json.getString("name"))
+    }
+
+    @Test fun gameCardContentIsWhatThePlayerReads() {
+        val fields = CardStore.gameFields("he>en", 3, listOf("https://a/1", "https://a/2"))
+        val json = JSONObject(CardStore.contentJson("game", null, null, "Animals", "t", fields))
+        assertEquals("game", json.getString("type"))
+        assertEquals("find-card", json.getString("game"))
+        assertEquals("he>en", json.getString("lang"))
+        assertEquals(3, json.getInt("rounds"))
+        assertEquals(2, json.getJSONArray("deck").length())
+        assertFalse(json.has("media"))
+        assertFalse(CardStore.gameFields("en", null, listOf("https://a/1")).has("rounds"))
+    }
+
+    @Test fun onlyWordCardsWithTheRightLanguagesFitAGame() {
+        fun card(type: String, vararg langs: String) =
+            Card(JSONObject().put("type", type).put("langs", org.json.JSONArray(langs.toList())))
+        val both = card("word", "en", "he")
+        val hebrewOnly = card("word", "he")
+        assertTrue(CardStore.fitsGame(both, "en"))
+        assertTrue(CardStore.fitsGame(both, "he>en"))
+        assertTrue(CardStore.fitsGame(hebrewOnly, "he"))
+        assertFalse(CardStore.fitsGame(hebrewOnly, "en"))
+        assertFalse(CardStore.fitsGame(hebrewOnly, "he>en"))
+        assertFalse(CardStore.fitsGame(card("audio", "en"), "en"))
+        assertEquals(listOf("he", "en"), CardStore.languagesNeeded("he>en"))
+        assertEquals(listOf("en"), CardStore.languagesNeeded("en"))
+        assertEquals(listOf("en", "he"), card("word", "en", "he").langs)
+    }
 }

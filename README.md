@@ -20,7 +20,7 @@ NFC card (URL) -> content.json -> audio/video (+ cover) -> cached on the phone -
    { "type": "video", "media": "<share link to movie.mp4>" }
    ```
 
-   `type` and `media` are required, `image` is optional (artwork shown while a song plays, and the front of a printed card; the player
+   `type` and `media` are required (except for word and game cards, see [Games](#games-learn-words-by-playing)), `image` is optional (artwork shown while a song plays, and the front of a printed card; the player
    ignores it for videos). Unknown extra
    fields are ignored, so the format can grow. Use ordinary Drive share links
    (`https://drive.google.com/file/d/<ID>/view?...`); the app turns them into direct downloads.
@@ -163,12 +163,17 @@ The phone **speaks text from the cards** (Android text-to-speech); nothing is re
 Settings -> General management -> Text-to-speech -> preferred engine **Google**, and download the English and Hebrew
 voice data there. (With a factory-reset kiosk phone this is a manual step after setup.)
 
-**Word cards** are ordinary audio/video cards with a `words` field saying how the card is spoken in each language.
-`ask` is the form used inside a question (Hebrew's "ה" prefix); it defaults to `text`. A word can optionally carry
-an `audio` link, a recording that is played instead of the synthesized voice.
+**Making them.** You never have to write this JSON: the web card manager and the companion app both have a
+**Word card** type in *New card* and a *New game* form (name, language, rounds, and the cards of the game, offering
+only word cards that have the words the language needs). The rest of this section is the format they write.
+
+**Word cards** have `"type": "word"` and no media file: a picture (optional) and `words`, how the card is spoken in
+each language. Tapped on its own, a word card shows its picture and says its words, English first. `ask` is the form
+used inside a question (Hebrew's "ה" prefix); it defaults to `text`. Any audio or video card may also have `words`
+(for games), and a word may carry an `audio` link, a recording played in games instead of the synthesized voice.
 
 ```json
-{ "type": "audio", "media": "<share link>", "image": "<share link>", "name": "Dog",
+{ "type": "word", "image": "<share link>", "name": "Dog",
   "words": { "en": { "text": "dog" }, "he": { "text": "כלב", "ask": "הכלב" } } }
 ```
 

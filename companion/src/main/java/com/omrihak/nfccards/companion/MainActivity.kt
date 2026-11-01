@@ -228,6 +228,8 @@ private fun CompanionApp(
                 onSignIn = onSignIn,
                 onRefresh = cardsVm::refresh,
                 onCreate = cardsVm::create,
+                onCreateWord = cardsVm::createWord,
+                onCreateGame = cardsVm::createGame,
                 onPlay = playCard,
                 onWriteSticker = stickers::begin,
                 onCopyLink = onCopyLink,

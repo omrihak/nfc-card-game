@@ -208,7 +208,11 @@ private fun NowPlayingCard(
                 status == null -> "—"
                 status.state == "idle" -> "Nothing (waiting for a card)"
                 status.state == "loading" -> "Loading ${status.title ?: "a card"}…"
-                else -> status.title ?: if (status.state == "video") "A video" else "A song"
+                else -> status.title ?: when (status.state) {
+                    "video" -> "A video"
+                    "game" -> "A game"
+                    else -> "A song"
+                }
             }
             Text(title, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (status != null && status.isPlayingSomething) {
@@ -458,7 +462,12 @@ private fun updateLine(status: PlayerStatus?): String? = when (status?.update) {
     else -> status?.updateMessage
 }
 
-internal fun typeLabel(type: String) = if (type == "video") "Video" else "Song"
+internal fun typeLabel(type: String) = when (type) {
+    "video" -> "Video"
+    "word" -> "Word card"
+    "game" -> "Game"
+    else -> "Song"
+}
 
 private fun formatTime(millis: Long): String {
     val seconds = millis / 1000

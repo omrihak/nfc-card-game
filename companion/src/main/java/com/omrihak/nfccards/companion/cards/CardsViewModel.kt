@@ -81,6 +81,32 @@ class CardsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun createWord(name: String, words: Map<String, CardStore.Word>, image: Uri?, onDone: () -> Unit) =
+        build(onDone) { onProgress ->
+            val card = store.createWord(name, words, image?.let { upload(it) }, onProgress)
+            "\"${card.name}\" is ready. Write it to a sticker, or play it on the player."
+        }
+
+    fun createGame(name: String, lang: String, rounds: Int?, deck: List<Card>, image: Uri?, onDone: () -> Unit) =
+        build(onDone) { onProgress ->
+            val card = store.createGame(name, lang, rounds, deck, image?.let { upload(it) }, onProgress)
+            "\"${card.name}\" is ready. Write it to a sticker, then tap it on the player to start the game."
+        }
+
+    /** Runs a card creation with progress; [make] returns the message to show when it worked. */
+    private fun build(onDone: () -> Unit, make: suspend ((String, Float) -> Unit) -> String) {
+        if (_progress.value != null) return
+        viewModelScope.launch {
+            _progress.value = Progress("Starting…", 0f)
+            val ok = attempt {
+                _message.value = make { text, fraction -> _progress.value = Progress(text, fraction.coerceIn(0f, 1f)) }
+                _cards.value = store.cards().asReversed()
+            }
+            _progress.value = null
+            if (ok) onDone()
+        }
+    }
+
     fun remove(card: Card) {
         viewModelScope.launch {
             _loading.value = true

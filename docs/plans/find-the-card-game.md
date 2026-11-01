@@ -1,7 +1,7 @@
 # Plan: games, starting with "Find the card"
 
-Status: **core built** (card format, game logic, speech, player screens, stars). Not built yet: the manager and
-companion forms for making game cards. Decisions below were made with the parent; the open ones are marked.
+Status: **built**: card format, game logic, speech, player screens, stars, and the word card / game forms in the web
+manager and the companion app. Not yet tried on a phone. Decisions below were made with the parent; the open ones are marked.
 
 Goal: let the child learn words (Hebrew and English) by playing with the cards, with almost no screen time. A new
 kind of card starts a **game**; the first game is **Find the card**: the phone asks "Where is the dog?" (in English or
@@ -96,7 +96,7 @@ every card was asked once.
 2. Done: `Game` interface, `FindCardGame`, `GameSession` (speech, hints, stars, idle repeats), tests.
 3. Done (not yet run on a phone): Android `Speaker` over TextToSpeech; view-model wiring; stars on the idle screen;
    game screen with the hint picture.
-4. Manager and companion forms.
+4. Done: manager and companion forms (word card type, "New game" with a deck picker filtered by language).
 5. Done: README section; the setup note below.
 
 ## Setup note
