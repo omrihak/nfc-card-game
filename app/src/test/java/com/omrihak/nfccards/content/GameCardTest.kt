@@ -80,4 +80,22 @@ class GameCardTest {
         val m = ContentMetadata.parse("""{"type":"audio","media":"https://a/b.mp3","words":{"en":{"text":"dog","audio":"file:///x"}}}""")
         assertNull(m.words["en"]!!.audio)
     }
+
+    @Test fun wordCardNeedsNoMedia() {
+        val m = ContentMetadata.parse(
+            """{"type":"word","name":"Dog","image":"https://a/dog.jpg","words":{"he":{"text":"כלב"},"fr":{"text":"chien"},"en":{"text":"dog"}}}""",
+        )
+        assertEquals("word", m.type)
+        assertEquals("", m.media)
+        assertEquals("https://a/dog.jpg", m.image)
+        // English first, then the others alphabetically.
+        assertEquals(listOf("en", "fr", "he"), m.words.inSpeakingOrder.map { it.first })
+    }
+
+    @Test fun wordCardWithoutWordsIsMalformed() {
+        assertEquals(ErrorKind.MALFORMED_METADATA, kindOf("""{"type":"word"}"""))
+        assertEquals(ErrorKind.MALFORMED_METADATA, kindOf("""{"type":"word","words":{"en":{"nope":1}}}"""))
+    }
+
+    @Test fun wordCardWithBadImage() = assertEquals(ErrorKind.INVALID_URL, kindOf("""{"type":"word","image":"x","words":{"en":{"text":"a"}}}"""))
 }

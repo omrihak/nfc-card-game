@@ -6,12 +6,13 @@ import org.json.JSONObject
 /**
  * The small JSON file an NFC tag points to.
  *
- * Fields: `type` ("audio" | "video" | "game"), `media` (required except for games), `image` (optional artwork).
- * An audio or video card may also have `words` (how it is spoken in games, see [Words]); a game card has the
- * settings described in [GameSpec]. Unknown fields are ignored but kept in [raw], so later features can read
- * new fields without changing the parser.
+ * Fields: `type` ("audio" | "video" | "word" | "game"), `media` (required for audio and video), `image`
+ * (optional artwork). A card may have `words` (how it is spoken, see [Words]); a word card is made of nothing
+ * else: tapped alone it shows its picture and says its words, and it is what games are played with. A game card
+ * has the settings described in [GameSpec]. Unknown fields are ignored but kept in [raw], so later features
+ * can read new fields without changing the parser.
  *
- * For a game card [media] is empty and [game] holds the settings.
+ * For word and game cards [media] is empty; for a game card [game] holds the settings.
  */
 data class ContentMetadata(
     val type: String,
@@ -30,7 +31,8 @@ data class ContentMetadata(
         const val TYPE_AUDIO = "audio"
         const val TYPE_VIDEO = "video"
         const val TYPE_GAME = "game"
-        private val SUPPORTED_TYPES = setOf(TYPE_AUDIO, TYPE_VIDEO, TYPE_GAME)
+        const val TYPE_WORD = "word"
+        private val SUPPORTED_TYPES = setOf(TYPE_AUDIO, TYPE_VIDEO, TYPE_GAME, TYPE_WORD)
 
         fun parse(text: String): ContentMetadata {
             val json = try {
@@ -45,10 +47,14 @@ data class ContentMetadata(
                 throw ContentException(ErrorKind.UNSUPPORTED, "Unsupported content type \"$type\"")
             }
 
-            if (type == TYPE_GAME) {
+            if (type == TYPE_GAME || type == TYPE_WORD) {
                 val image = json.stringOrNull("image")
                 if (image != null) requireHttpUrl(image, "image")
-                return ContentMetadata(type, "", image, json, GameSpec.parse(json))
+                if (type == TYPE_GAME) return ContentMetadata(type, "", image, json, GameSpec.parse(json))
+                if (Words.parse(json.optJSONObject("words")).isEmpty) {
+                    throw ContentException(ErrorKind.MALFORMED_METADATA, "Word card has no \"words\"")
+                }
+                return ContentMetadata(type, "", image, json)
             }
 
             val media = json.stringOrNull("media")

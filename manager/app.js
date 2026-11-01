@@ -4,11 +4,12 @@
  *   Tap and Play/
  *     cards.json            index of every card made here (for this page's list)
  *     <card name>/
- *       <song or video>     public
+ *       <song or video>     public (none for word cards and games)
  *       <picture>           public, optional
  *       content.json        public; its share link is what goes on the NFC sticker
  *
- * content.json is the format the Android player reads (see README "Making a card").
+ * content.json is the format the Android player reads (see README "Making a card" and "Games").
+ * Card types: song ("audio"), "video", "word" (words the phone speaks, no file) and "game" (a deck of word cards).
  */
 const config = window.MANAGER_CONFIG;
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
@@ -23,6 +24,7 @@ let tokenClient = null;
 let tokenExpiresAt = 0;
 let pendingToken = null; // { resolve, reject } while the Google popup is open
 let rootFolder = null;
+let allCards = []; // the index as last read, for the game form's deck list
 const selected = new Map(); // contentUrl -> card, in the order they were ticked (= print order)
 
 // Google Identity Services script loaded.
@@ -102,6 +104,7 @@ function showSignedIn(signedIn) {
   $("signin").hidden = signedIn;
   $("signout").hidden = !signedIn;
   $("new-card").hidden = !signedIn;
+  $("new-game").hidden = !signedIn;
   $("cards-section").hidden = !signedIn;
   $("signed-out").hidden = signedIn;
 }
@@ -122,6 +125,8 @@ $("signout").addEventListener("click", () => {
   clearSession();
   rootFolder = null;
   selected.clear();
+  allCards = [];
+  renderDeck();
   $("cards").replaceChildren();
   showSignedIn(false);
 });
@@ -144,14 +149,16 @@ $("card-form").addEventListener("submit", (event) => {
 
   const name = $("name").value.trim();
   const type = selectedType();
-  const media = type === "audio" ? $("audio-file").files[0] : $("video-file").files[0];
+  const media = type === "audio" ? $("audio-file").files[0] : type === "video" ? $("video-file").files[0] : null;
   const image = $("image-file").files[0];
+  const words = type === "word" ? readWords() : null;
   if (!name) return showError("Give the card a name.");
-  if (!media) return showError(type === "audio" ? "Choose a song." : "Choose a video.");
+  if (type !== "word" && !media) return showError(type === "audio" ? "Choose a song." : "Choose a video.");
+  if (type === "word" && Object.keys(words).length === 0) return showError("Type the English or the Hebrew word.");
 
   setBusy(true);
   ensureToken()
-    .then(() => createCard({ name, type, media, image }))
+    .then(() => createCard({ name, type, media, image, words }))
     .then(async (card) => {
       $("card-form").reset();
       document.querySelectorAll("[data-for]").forEach((el) => (el.hidden = el.dataset.for !== "audio"));
@@ -170,13 +177,27 @@ async function getRoot() {
   return rootFolder;
 }
 
-async function createCard({ name, type, media, image }) {
+/** The `words` field of a word card, from the form: { en: {text}, he: {text, ask?} }. */
+function readWords() {
+  const words = {};
+  const en = $("word-en").value.trim();
+  if (en) words.en = { text: en };
+  const he = $("word-he").value.trim();
+  if (he) {
+    words.he = { text: he };
+    const ask = $("word-he-ask").value.trim();
+    if (ask) words.he.ask = ask;
+  }
+  return words;
+}
+
+async function createCard({ name, type, media, image, words }) {
   setProgress("Creating folder…", 0);
   const root = await getRoot();
   const folder = await Drive.createFolder(name, root.id);
 
   // Upload progress is weighted by size; the small steps after that are not counted.
-  const total = media.size + (image ? image.size : 0);
+  const total = (media ? media.size : 0) + (image ? image.size : 0) || 1;
   let done = 0;
   const uploadOne = async (file, label) => {
     const uploaded = await Drive.upload(file, file.name, folder.id, (fraction) =>
@@ -187,12 +208,14 @@ async function createCard({ name, type, media, image }) {
     return uploaded;
   };
 
-  const mediaFile = await uploadOne(media, type === "audio" ? "song" : "video");
+  const mediaFile = media ? await uploadOne(media, type === "audio" ? "song" : "video") : null;
   const imageFile = image ? await uploadOne(image, "picture") : null;
 
   setProgress("Writing content.json…", 1);
-  const content = { type, media: Drive.shareLink(mediaFile.id) };
+  const content = { type };
+  if (mediaFile) content.media = Drive.shareLink(mediaFile.id);
   if (imageFile) content.image = Drive.shareLink(imageFile.id);
+  if (words) content.words = words;
   // Extra fields are ignored by the player.
   content.name = name;
   content.createdAt = new Date().toISOString();
@@ -208,9 +231,130 @@ async function createCard({ name, type, media, image }) {
     folderId: folder.id,
     createdAt: content.createdAt,
   };
+  // Which languages a word card has, so the game form can offer only cards that fit its language.
+  if (words) card.langs = Object.keys(words);
   setProgress("Adding to the card list…", 1);
   await addToIndex(card);
   return card;
+}
+
+// ---- Games ----
+
+/** Languages a game needs on every card of its deck. */
+const GAME_LANGS = { en: ["en"], he: ["he"], "he>en": ["he", "en"] };
+
+function gameLang() {
+  return $("game-lang").value;
+}
+
+/** The ticked cards of the deck list, as card objects. */
+function chosenDeck() {
+  const urls = [...document.querySelectorAll("#game-deck input:checked")].map((box) => box.value);
+  return allCards.filter((card) => urls.includes(card.contentUrl));
+}
+
+/** Word cards that have the words the chosen language needs; ticks survive a language change where they still fit. */
+function renderDeck() {
+  const needed = GAME_LANGS[gameLang()];
+  const ticked = new Set(chosenDeck().map((card) => card.contentUrl));
+  const words = allCards.filter((card) => card.type === "word");
+  const fitting = words.filter((card) => needed.every((lang) => (card.langs || []).includes(lang)));
+  const items = fitting.map((card) => {
+    const item = document.createElement("li");
+    const label = document.createElement("label");
+    label.className = "inline";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.value = card.contentUrl;
+    box.checked = ticked.has(card.contentUrl);
+    label.append(box, ` ${card.name}`);
+    item.append(label);
+    return item;
+  });
+  $("game-deck").replaceChildren(...items);
+  const empty = $("game-deck-empty");
+  empty.hidden = fitting.length > 0;
+  if (fitting.length === 0) {
+    empty.textContent =
+      words.length === 0
+        ? "No word cards yet. Make some above (choose \"Word card\")."
+        : "None of your word cards has the words this language needs. Make word cards with " +
+          needed.map((lang) => (lang === "en" ? "an English" : "a Hebrew")).join(" and ") + " word.";
+  }
+}
+
+$("game-lang").addEventListener("change", renderDeck);
+
+$("game-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  hideError("game-");
+  const name = $("game-name").value.trim();
+  const roundsText = $("game-rounds").value.trim();
+  const rounds = roundsText ? Math.floor(Number(roundsText)) : null;
+  const deck = chosenDeck();
+  if (!name) return showError("Give the game card a name.", "game-");
+  if (deck.length < 2) return showError("Tick at least 2 cards for the game.", "game-");
+  if (rounds !== null && !(rounds >= 1)) return showError("Rounds must be 1 or more.", "game-");
+
+  $("create-game").disabled = true;
+  ensureToken()
+    .then(() => createGame({ name, lang: gameLang(), rounds, deck, image: $("game-image").files[0] }))
+    .then(async (card) => {
+      $("game-form").reset();
+      setProgress(`"${card.name}" is ready. Write it to a sticker below.`, 1, "game-");
+      await refreshCards();
+    })
+    .catch((e) => {
+      $("game-progress").hidden = true;
+      showError(e, "game-");
+    })
+    .finally(() => ($("create-game").disabled = false));
+});
+
+/** A game card: content.json only (plus an optional picture for printing). The deck is listed by card link. */
+async function createGame({ name, lang, rounds, deck, image }) {
+  setProgress("Creating folder…", 0, "game-");
+  const root = await getRoot();
+  const folder = await Drive.createFolder(name, root.id);
+
+  let imageFile = null;
+  if (image) {
+    imageFile = await Drive.upload(image, image.name, folder.id, (fraction) =>
+      setProgress("Uploading picture…", fraction, "game-"),
+    );
+    await Drive.makePublic(imageFile.id);
+  }
+
+  setProgress("Writing content.json…", 1, "game-");
+  const content = { type: "game", game: "find-card", lang };
+  if (rounds) content.rounds = rounds;
+  content.deck = deck.map((card) => card.contentUrl);
+  if (imageFile) content.image = Drive.shareLink(imageFile.id);
+  content.name = name;
+  content.createdAt = new Date().toISOString();
+
+  const contentBlob = new Blob([JSON.stringify(content, null, 2)], { type: "application/json" });
+  const contentFile = await Drive.upload(contentBlob, "content.json", folder.id);
+  await Drive.makePublic(contentFile.id);
+
+  const card = {
+    name,
+    type: "game",
+    contentUrl: Drive.shareLink(contentFile.id),
+    folderId: folder.id,
+    createdAt: content.createdAt,
+    lang,
+  };
+  setProgress("Adding to the card list…", 1, "game-");
+  await addToIndex(card);
+  return card;
+}
+
+function typeLabel(card) {
+  if (card.type === "video") return "video";
+  if (card.type === "word") return "word card";
+  if (card.type === "game") return "game";
+  return "song";
 }
 
 async function readIndex() {
@@ -249,6 +393,8 @@ async function writeIndex(file, cards) {
 
 async function refreshCards() {
   const { cards } = await readIndex();
+  allCards = cards;
+  renderDeck();
   const list = $("cards");
   const template = $("card-row");
   list.replaceChildren(
@@ -258,7 +404,7 @@ async function refreshCards() {
       .map((card) => {
         const row = template.content.firstElementChild.cloneNode(true);
         row.querySelector(".row-name").textContent = card.name;
-        row.querySelector(".row-type").textContent = card.type === "video" ? "video" : "song";
+        row.querySelector(".row-type").textContent = typeLabel(card);
         const select = row.querySelector(".row-select");
         select.checked = selected.has(card.contentUrl);
         select.addEventListener("change", () => {
@@ -502,20 +648,21 @@ function setBusy(busy) {
   $("create").textContent = busy ? "Working…" : "Create card";
 }
 
-function setProgress(text, fraction) {
-  $("progress").hidden = false;
-  $("progress-text").textContent = text;
-  $("progress-bar").value = Math.max(0, Math.min(1, fraction));
+/** [scope] picks which form's progress bar and error line: "" for the card form, "game-" for the game form. */
+function setProgress(text, fraction, scope = "") {
+  $(`${scope}progress`).hidden = false;
+  $(`${scope}progress-text`).textContent = text;
+  $(`${scope}progress-bar`).value = Math.max(0, Math.min(1, fraction));
 }
 
-function showError(error) {
+function showError(error, scope = "") {
   console.error(error);
-  $("error").textContent = typeof error === "string" ? error : error.message || String(error);
-  $("error").hidden = false;
+  $(`${scope}error`).textContent = typeof error === "string" ? error : error.message || String(error);
+  $(`${scope}error`).hidden = false;
 }
 
-function hideError() {
-  $("error").hidden = true;
+function hideError(scope = "") {
+  $(`${scope}error`).hidden = true;
 }
 
 restoreSession();

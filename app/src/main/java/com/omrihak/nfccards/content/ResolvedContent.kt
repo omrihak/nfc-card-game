@@ -19,6 +19,11 @@ sealed interface ResolvedContent {
 
     data class Video(val file: File, override val mediaUrl: String, override val title: String? = null) : ResolvedContent
 
+    /** A word card: its picture, and the words it says. */
+    data class Word(val words: Words, val artwork: Bitmap?, override val title: String? = null) : ResolvedContent {
+        override val mediaUrl: String get() = ""
+    }
+
     /**
      * A game card with its deck loaded: [cards] are keyed by [com.omrihak.nfccards.game.CardKey], [hints] holds
      * their pictures (same keys) and [clips] the recordings some words use instead of speech (by URL).

@@ -20,6 +20,7 @@ import com.omrihak.nfccards.media.PlayerController
 import com.omrihak.nfccards.remote.Pairing
 import com.omrihak.nfccards.remote.Remote
 import com.omrihak.nfccards.remote.RemoteApi
+import com.omrihak.nfccards.speech.SpeechUnavailableException
 import com.omrihak.nfccards.speech.TextToSpeechSpeaker
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CancellationException
@@ -28,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -200,6 +202,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
                         _state.value = UiState.Video
                         player.play(content.file)
                     }
+                    is ResolvedContent.Word -> {
+                        // Shows the picture like a song's artwork and says each language's word, then goes idle.
+                        _state.value = UiState.Audio(content.artwork)
+                        var spoken = 0
+                        for ((lang, form) in content.words.inSpeakingOrder) {
+                            try {
+                                speaker.speak(form.text, lang)
+                                spoken++
+                                delay(WORD_PAUSE_MILLIS)
+                            } catch (e: SpeechUnavailableException) {
+                                Log.w(TAG, "Cannot say \"${form.text}\" in $lang: ${e.message}")
+                                _debugMessages.tryEmit("SPEECH: ${e.message}")
+                            }
+                        }
+                        if (spoken == 0) resetToIdle() else stop()
+                    }
                     is ResolvedContent.Game -> {
                         // Throws ContentException (handled below) if the deck cannot make this game.
                         val game = Games.create(content.spec, content.cards)
@@ -338,5 +356,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
     private companion object {
         const val TAG = "MainViewModel"
         const val KEY_STARS = "stars"
+        const val WORD_PAUSE_MILLIS = 500L
     }
 }

@@ -43,6 +43,8 @@ class ContentResolver(
             }
             ContentMetadata.TYPE_VIDEO -> ResolvedContent.Video(cache.get(metadata.media), metadata.media, metadata.name)
             ContentMetadata.TYPE_GAME -> resolveGame(metadata)
+            ContentMetadata.TYPE_WORD ->
+                ResolvedContent.Word(metadata.words, metadata.image?.let { loadArtwork(it) }, metadata.name)
             else -> throw ContentException(ErrorKind.UNSUPPORTED, "Unsupported content type ${metadata.type}")
         }
     }

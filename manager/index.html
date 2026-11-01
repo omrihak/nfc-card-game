@@ -27,6 +27,7 @@
           <legend>Type</legend>
           <label class="inline"><input type="radio" name="type" value="audio" checked> Song</label>
           <label class="inline"><input type="radio" name="type" value="video"> Video</label>
+          <label class="inline"><input type="radio" name="type" value="word"> Word card (for games)</label>
         </fieldset>
 
         <div data-for="audio">
@@ -39,7 +40,26 @@
             <input id="video-file" type="file" accept="video/*">
           </label>
         </div>
-        <label>Picture (optional, printed on the card)
+        <div data-for="word" hidden>
+          <p class="hint">
+            Tapped on its own, a word card shows its picture and says the words. It is also what the games use.
+            The phone speaks the text, so there is nothing to record.
+          </p>
+          <label>English word
+            <input id="word-en" maxlength="60" placeholder="e.g. dog" autocapitalize="none">
+          </label>
+          <label>Hebrew word
+            <input id="word-he" maxlength="60" dir="auto" lang="he" placeholder="למשל כלב">
+          </label>
+          <label>Hebrew word inside a question (optional)
+            <input id="word-he-ask" maxlength="60" dir="auto" lang="he" placeholder="למשל הכלב">
+          </label>
+          <p class="hint">
+            For "Where is the dog?" in Hebrew the word often needs a different form (איפה <em>הכלב</em>?).
+            Leave it empty to use the Hebrew word as is. You can add vowel marks (כֶּלֶב) if the voice mispronounces it.
+          </p>
+        </div>
+        <label>Picture (optional for songs and videos, printed on the card)
           <input id="image-file" type="file" accept="image/*">
         </label>
 
@@ -50,6 +70,43 @@
         <progress id="progress-bar" max="1" value="0"></progress>
       </div>
       <p id="error" class="error" hidden></p>
+    </section>
+
+    <section id="new-game" class="card" hidden>
+      <h2>New game</h2>
+      <p class="hint">
+        <strong>Find the card:</strong> the phone asks "Where is the dog?" and she taps the dog card. Lay out the cards of
+        the game in front of her (2 to 4 is plenty), tick the same ones here, and tap the game card to start.
+      </p>
+      <form id="game-form">
+        <label>Name
+          <input id="game-name" required maxlength="80" placeholder="e.g. Animals (English)">
+        </label>
+        <label>Language
+          <select id="game-lang">
+            <option value="en">English: asks and says the words in English</option>
+            <option value="he">Hebrew: asks and says the words in Hebrew</option>
+            <option value="he>en">Hebrew to English: asks in Hebrew, then says the English word</option>
+          </select>
+        </label>
+        <label>Rounds (optional)
+          <input id="game-rounds" type="number" min="1" max="50" placeholder="5">
+        </label>
+        <fieldset>
+          <legend>Cards in the game</legend>
+          <ul id="game-deck" class="deck"></ul>
+          <p id="game-deck-empty" class="hint" hidden></p>
+        </fieldset>
+        <label>Picture (optional, printed on the game card)
+          <input id="game-image" type="file" accept="image/*">
+        </label>
+        <button id="create-game" type="submit">Create game card</button>
+      </form>
+      <div id="game-progress" hidden>
+        <p id="game-progress-text"></p>
+        <progress id="game-progress-bar" max="1" value="0"></progress>
+      </div>
+      <p id="game-error" class="error" hidden></p>
     </section>
 
     <section id="cards-section" class="card" hidden>

@@ -20,6 +20,10 @@ class Words(private val byLang: Map<String, WordForm>) {
     val languages: Set<String> get() = byLang.keys
     val isEmpty: Boolean get() = byLang.isEmpty()
 
+    /** The languages in the order a word card speaks them: English first, then the others alphabetically. */
+    val inSpeakingOrder: List<Pair<String, WordForm>>
+        get() = byLang.entries.sortedWith(compareBy({ it.key != "en" }, { it.key })).map { it.key to it.value }
+
     companion object {
         val NONE = Words(emptyMap())
 
