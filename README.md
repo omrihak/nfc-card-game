@@ -53,8 +53,8 @@ Its stickers and printed cards then stop working, except on phones that have alr
 
 **Printing cards.** Tick cards in the list and press **Make PDF**. Each A4 sheet holds 6 cards (85 x 85 mm, 2 x 3)
 and is two pages: the fronts (the card's picture, fitted whole inside the square on white, or a coloured card with the name if it has none), then the backs
-(four copies of the QR code of the `content.json` link in a 2 x 2 grid, so a hand holding the card still leaves one
-visible, with the name between them). Print double-sided,
+(one big QR code of the `content.json` link with a 16 mm white border, so fingers holding the card don't cover it,
+and the name below it). Print double-sided,
 **flip on long edge**, at **Actual size / 100%**. Cards are 6 mm apart; the crop marks point at the middle of each
 gap, so cutting there leaves every card a 3 mm white border. The back page is mirrored, so each back lands behind
 its own front. If your
