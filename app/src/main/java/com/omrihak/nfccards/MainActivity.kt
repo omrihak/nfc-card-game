@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -56,6 +58,9 @@ class MainActivity : ComponentActivity() {
 
     /** Screen off and camera off after [IDLE_SLEEP_MS] without music; see [watchIdle]. */
     private var sleeping = false
+
+    /** Black, lowest brightness: what sleeping looks like when the screen can't really be turned off. */
+    private var dimmed by mutableStateOf(false)
     private var lastBusyAt = SystemClock.elapsedRealtime()
 
     private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -82,7 +87,7 @@ class MainActivity : ComponentActivity() {
         nfcReader = NfcReader(this) { uri -> runOnUiThread { onCard(uri) } }
         qrScanner = QrScanner(this) { text -> onCard(text) }
 
-        setContent { App(viewModel, qrScanner) }
+        setContent { App(viewModel, qrScanner, dimmed) }
         watchIdle()
 
         // The companion app's "Open settings" / "Remove kiosk": same as the admin cards.
@@ -154,12 +159,21 @@ class MainActivity : ComponentActivity() {
         sleeping = true
         qrScanner.stop()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        kiosk.sleepScreen()
+        if (!kiosk.sleepScreen()) setDimmed(true)
+    }
+
+    private fun setDimmed(on: Boolean) {
+        dimmed = on
+        window.attributes = window.attributes.apply {
+            screenBrightness = if (on) 0.01f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        }
     }
 
     private fun wake() {
         sleeping = false
         lastBusyAt = SystemClock.elapsedRealtime()
+        setDimmed(false)
+        kiosk.enter() // puts "stay on while charging" back
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         startQrScanner()
     }
@@ -220,7 +234,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun App(viewModel: MainViewModel, qrScanner: QrScanner) {
+private fun App(viewModel: MainViewModel, qrScanner: QrScanner, dimmed: Boolean) {
     val state by viewModel.state.collectAsState()
     val problems by viewModel.problems.collectAsState()
     val pairings by viewModel.pairings.collectAsState()
@@ -251,5 +265,6 @@ private fun App(viewModel: MainViewModel, qrScanner: QrScanner) {
                 .windowInsetsPadding(WindowInsets.displayCutout)
                 .padding(8.dp),
         )
+        if (dimmed) Box(Modifier.fillMaxSize().background(Color.Black))
     }
 }

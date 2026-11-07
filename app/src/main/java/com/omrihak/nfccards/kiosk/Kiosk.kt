@@ -71,14 +71,20 @@ class Kiosk(private val activity: Activity) {
         if (!inLockTask()) activity.startLockTask()
     }
 
-    /** Turns the screen off (kiosk mode only: there is no lock screen to get past). False if it can't. */
+    /**
+     * Turns the screen off (kiosk mode only: there is no lock screen to get past). If Android refuses,
+     * the "stay on while charging" setting is lifted instead so the phone's own timeout can do it, and
+     * this returns false: the caller should black the screen out meanwhile. [enter] puts the setting back.
+     */
     fun sleepScreen(): Boolean {
         if (!isDeviceOwner) return false
         return try {
             dpm.lockNow()
+            Log.i(TAG, "Screen turned off (lockNow)")
             true
-        } catch (e: SecurityException) {
-            Log.w(TAG, "Could not turn the screen off", e)
+        } catch (e: Exception) {
+            Log.w(TAG, "lockNow refused; falling back to the screen timeout", e)
+            dpm.setGlobalSetting(admin, Settings.Global.STAY_ON_WHILE_PLUGGED_IN, "0")
             false
         }
     }
