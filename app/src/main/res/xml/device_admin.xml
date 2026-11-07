@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Device owner needs no listed policies for lock task, keyguard and status bar control. -->
+<!-- Device owner needs no listed policies for lock task, keyguard and status bar control.
+     force-lock lets the idle player turn its screen off (DevicePolicyManager.lockNow). -->
 <device-admin>
-    <uses-policies />
+    <uses-policies>
+        <force-lock />
+    </uses-policies>
 </device-admin>

@@ -138,7 +138,7 @@ so the companion still knows it found a player and offers to pair.
 
 | Request                                   | Does                                                         |
 |-------------------------------------------|--------------------------------------------------------------|
-| `GET /api/status`                         | `{"app":"tapandplay","paired":true,"state":"idle\|loading\|audio\|video","paused":false,"title":"...","card":"...","positionMs":0,"durationMs":0,"volume":7,"maxVolume":15,"version":"0.1.0","deviceOwner":true,"update":"idle\|downloading\|installing\|failed","updateMessage":"..."}` |
+| `GET /api/status`                         | `{"app":"tapandplay","paired":true,"state":"idle\|loading\|audio\|video","paused":false,"title":"...","card":"...","positionMs":0,"durationMs":0,"volume":7,"maxVolume":15,"version":"0.1.0","deviceOwner":true,"battery":80,"charging":false,"update":"idle\|downloading\|installing\|failed","updateMessage":"..."}` |
 | `POST /api/play` `{"url":"<card link>"}`  | Plays a card's `content.json` link, exactly like tapping it  |
 | `POST /api/pause`, `/api/resume`, `/api/stop` | Pause, resume, stop (back to the idle screen)            |
 | `POST /api/volume` `{"level":7}` or `{"step":1}` / `{"step":-1}` | Sets the media volume, or moves it one step |
@@ -205,6 +205,10 @@ More games can be added later as other `game` values; see [docs/plans/find-the-c
   Admin card URIs work as QR codes too. In kiosk mode the camera permission is granted automatically.
 - Battery level is shown small in the top-right corner (the system status bar is hidden).
 - Anything that goes wrong (unknown tag, no internet, bad JSON, missing/unsupported media...) returns to the idle screen with a small wordless wobble. Details are in Logcat (tags `NfcReader`, `ContentResolver`, `MediaCache`, `MainViewModel`).
+- To save battery, after a minute without a song playing (nothing playing, or paused) the player turns its camera off
+  and, in kiosk mode, its screen; in a normal install it only stops keeping the screen on, so the system's own
+  timeout turns it off. A touch, the power button, a card tap or playing something from the companion wakes it.
+- The companion shows the player's battery level next to its connection status.
 - Volume follows the phone's volume (which the companion app can change).
 - The companion app can pause, resume, stop and play cards over Wi-Fi; to the player that is the same as a double-tap,
   a hold or a card tap.

@@ -94,7 +94,7 @@ fun PlayerScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { ConnectionCard(connection, onConnectManually) }
+        item { ConnectionCard(connection, status, onConnectManually) }
         if (connection is Connection.NotPaired) {
             item { PairCard(pairingToken, canWriteStickers, onWriteSticker) }
             item { tools() }
@@ -138,7 +138,7 @@ fun PlayerScreen(
 }
 
 @Composable
-private fun ConnectionCard(connection: Connection, onConnectManually: (String) -> Unit) {
+private fun ConnectionCard(connection: Connection, status: PlayerStatus?, onConnectManually: (String) -> Unit) {
     var showManual by rememberSaveable { mutableStateOf(false) }
     var address by rememberSaveable { mutableStateOf("") }
     Card(Modifier.fillMaxWidth()) {
@@ -153,6 +153,15 @@ private fun ConnectionCard(connection: Connection, onConnectManually: (String) -
                 Surface(Modifier.size(10.dp), shape = CircleShape, color = color) {}
                 Spacer(Modifier.width(10.dp))
                 Text(text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                val battery = status?.battery
+                if (connection is Connection.Connected && status != null && battery != null) {
+                    Text(
+                        (if (status.charging) "⚡" else "🔋") + " $battery%",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (battery <= 20 && !status.charging) Color(0xFFD93B3B) else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
             if (connection !is Connection.Connected && connection !is Connection.NotPaired) {
                 Text(

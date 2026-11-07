@@ -49,6 +49,9 @@ class RemoteApi(
     interface Admin {
         val version: String
         val isDeviceOwner: Boolean
+        /** Battery charge, 0-100; null if unknown. */
+        val batteryPercent: Int? get() = null
+        val charging: Boolean get() = false
         /** "idle" | "downloading" | "installing" | "failed" */
         val updateState: String
         /** Why the last update failed, or that there was nothing newer. */
@@ -115,6 +118,8 @@ class RemoteApi(
         put("maxVolume", volume.max)
         put("version", admin.version)
         put("deviceOwner", admin.isDeviceOwner)
+        admin.batteryPercent?.let { put("battery", it) }
+        put("charging", admin.charging)
         put("update", admin.updateState)
         admin.updateMessage?.let { put("updateMessage", it) }
     }

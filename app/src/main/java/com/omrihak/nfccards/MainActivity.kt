@@ -7,6 +7,7 @@ import android.content.pm.ApplicationInfo
 import android.nfc.NfcAdapter
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import android.widget.Toast
 import android.view.WindowManager
@@ -42,6 +43,7 @@ import com.omrihak.nfccards.ui.CameraBubble
 import com.omrihak.nfccards.ui.GameScreen
 import com.omrihak.nfccards.ui.IdleScreen
 import com.omrihak.nfccards.ui.VideoScreen
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -51,6 +53,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var kiosk: Kiosk
     private lateinit var qrScanner: QrScanner
     private var askedForCamera = false
+
+    /** Screen off and camera off after [IDLE_SLEEP_MS] without music; see [watchIdle]. */
+    private var sleeping = false
+    private var lastBusyAt = SystemClock.elapsedRealtime()
 
     private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) qrScanner.start() else Log.w(TAG, "Camera permission denied; QR scanning off")
@@ -77,6 +83,7 @@ class MainActivity : ComponentActivity() {
         qrScanner = QrScanner(this) { text -> onCard(text) }
 
         setContent { App(viewModel, qrScanner) }
+        watchIdle()
 
         // The companion app's "Open settings" / "Remove kiosk": same as the admin cards.
         lifecycleScope.launch {
@@ -116,8 +123,50 @@ class MainActivity : ComponentActivity() {
         viewModel.onCardScanned(uri)
     }
 
+    /** A touch wakes the player (when the screen is only dimmed, or after the parent turned it on). */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        lastBusyAt = SystemClock.elapsedRealtime()
+        if (sleeping) wake()
+    }
+
+    /**
+     * To save battery: when nothing has played for a minute, stop the camera and let the screen go
+     * off (in kiosk mode it is turned off right away; otherwise the system's own timeout does it).
+     * Anything playing again, a touch, or the screen coming back on wakes it.
+     */
+    private fun watchIdle() {
+        lifecycleScope.launch {
+            while (true) {
+                delay(IDLE_CHECK_MS)
+                val now = SystemClock.elapsedRealtime()
+                if (viewModel.isBusy()) {
+                    lastBusyAt = now
+                    if (sleeping) wake()
+                } else if (!sleeping && now - lastBusyAt >= IDLE_SLEEP_MS) {
+                    sleep()
+                }
+            }
+        }
+    }
+
+    private fun sleep() {
+        sleeping = true
+        qrScanner.stop()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        kiosk.sleepScreen()
+    }
+
+    private fun wake() {
+        sleeping = false
+        lastBusyAt = SystemClock.elapsedRealtime()
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        startQrScanner()
+    }
+
     override fun onResume() {
         super.onResume()
+        if (sleeping) wake() else lastBusyAt = SystemClock.elapsedRealtime()
         kiosk.enter()
         nfcReader.start()
         startQrScanner()
@@ -158,6 +207,8 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val TAG = "MainActivity"
+        const val IDLE_SLEEP_MS = 60_000L
+        const val IDLE_CHECK_MS = 2_000L
     }
 
     private fun hideSystemBars() {

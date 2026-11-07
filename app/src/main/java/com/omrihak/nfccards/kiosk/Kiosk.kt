@@ -71,6 +71,18 @@ class Kiosk(private val activity: Activity) {
         if (!inLockTask()) activity.startLockTask()
     }
 
+    /** Turns the screen off (kiosk mode only: there is no lock screen to get past). False if it can't. */
+    fun sleepScreen(): Boolean {
+        if (!isDeviceOwner) return false
+        return try {
+            dpm.lockNow()
+            true
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Could not turn the screen off", e)
+            false
+        }
+    }
+
     /** Handles admin cards. Returns false for any other card. */
     fun onAdminCard(uri: String): Boolean {
         when (uri.trim().lowercase()) {

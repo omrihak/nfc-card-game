@@ -92,6 +92,14 @@ class QrScanner(
         }, ContextCompat.getMainExecutor(activity))
     }
 
+    /** Turns the camera off (saves battery); [start] turns it on again. */
+    fun stop() {
+        if (!isRunning) return
+        ProcessCameraProvider.getInstance(activity).get().unbindAll()
+        isRunning = false
+        Log.i(TAG, "QR scanning off")
+    }
+
     fun release() = decodeExecutor.shutdown()
 
     /** Decoding thread. The Y plane is all a QR code needs. */

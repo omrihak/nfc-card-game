@@ -2,6 +2,9 @@ package com.omrihak.nfccards.remote
 
 import android.app.admin.DevicePolicyManager
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.media.AudioManager
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
@@ -92,8 +95,21 @@ class Remote(
         override val version: String =
             app.packageManager.getPackageInfo(app.packageName, 0).versionName ?: "?"
         override val isDeviceOwner get() = dpm.isDeviceOwnerApp(app.packageName)
+        override val batteryPercent get() = battery()?.let { it.first }
+        override val charging get() = battery()?.second ?: false
         override val updateState get() = SelfUpdater.state.name.lowercase()
         override val updateMessage get() = SelfUpdater.message
+
+        /** (percent, charging) from the sticky battery broadcast. */
+        private fun battery(): Pair<Int, Boolean>? {
+            val intent = app.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return null
+            val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+            val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+            if (level < 0 || scale <= 0) return null
+            val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+            val charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+            return (level * 100 / scale).coerceIn(0, 100) to charging
+        }
 
         override fun openSettings() = onAdminCard(Kiosk.SETTINGS_CARD)
         override fun release() = onAdminCard(Kiosk.RELEASE_CARD)

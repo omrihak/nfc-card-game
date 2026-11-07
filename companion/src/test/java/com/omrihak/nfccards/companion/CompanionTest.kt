@@ -18,6 +18,13 @@ import java.io.IOException
 
 class CompanionTest {
 
+    @Test fun statusParsesBattery() {
+        val s = PlayerStatus.parse("""{"app":"tapandplay","state":"idle","paused":false,"volume":3,"battery":42,"charging":true}""")
+        assertEquals(42, s.battery)
+        assertTrue(s.charging)
+        assertNull(PlayerStatus.parse("""{"app":"tapandplay","state":"idle","paused":false,"volume":3}""").battery)
+    }
+
     @Test fun parsesPlayingStatus() {
         val s = PlayerStatus.parse(
             """{"app":"tapandplay","state":"audio","paused":true,"title":"Baby Shark","card":"https://c",

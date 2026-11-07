@@ -22,6 +22,9 @@ data class PlayerStatus(
     val version: String? = null,
     /** True when the player is in full kiosk mode (device owner): only then can it update itself. */
     val deviceOwner: Boolean = false,
+    /** The player phone's battery charge, 0-100; null if it doesn't say (older players). */
+    val battery: Int? = null,
+    val charging: Boolean = false,
     /** "idle" | "downloading" | "installing" | "failed" */
     val update: String = "idle",
     /** Why the last update failed, or that there was nothing newer. */
@@ -46,6 +49,8 @@ data class PlayerStatus(
                 maxVolume = json.optInt("maxVolume", 15).coerceAtLeast(1),
                 version = json.optStringOrNull("version"),
                 deviceOwner = json.optBoolean("deviceOwner"),
+                battery = if (json.has("battery")) json.optInt("battery") else null,
+                charging = json.optBoolean("charging"),
                 update = json.optString("update", "idle"),
                 updateMessage = json.optStringOrNull("updateMessage"),
             )

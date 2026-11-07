@@ -339,6 +339,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
         pendingClip = null
     }
 
+    /** True while something is going on: a song or video playing, a game, or a card loading. */
+    fun isBusy(): Boolean = when (_state.value) {
+        UiState.Idle -> false
+        UiState.Loading, is UiState.Game -> true
+        is UiState.Audio, UiState.Video -> player.playWhenReady
+    }
+
     /** Activity left the foreground (screen off, another app): don't keep playing in the dark. */
     fun onBackground() {
         player.pause()

@@ -29,6 +29,8 @@ class RemoteApiTest {
         val calls = mutableListOf<String>()
         override val version = "1.2.3"
         override var isDeviceOwner = true
+        override val batteryPercent: Int? = 64
+        override val charging = true
         override var updateState = "idle"
         override val updateMessage: String? = null
         override fun openSettings() { calls += "settings" }
@@ -59,6 +61,8 @@ class RemoteApiTest {
         assertEquals(15, json.getInt("maxVolume"))
         assertTrue(json.getBoolean("paired"))
         assertEquals("1.2.3", json.getString("version"))
+        assertEquals(64, json.getInt("battery"))
+        assertTrue(json.getBoolean("charging"))
         assertTrue(json.getBoolean("deviceOwner"))
         assertEquals("idle", json.getString("update"))
     }
