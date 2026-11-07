@@ -96,7 +96,10 @@ storage of its own on a personal Gmail account.
   (settings / release) as a backup.
 - **Cards**: the web manager's features: sign in with Google, **make a new card** (name, song or video, optional
   picture), and the list of cards with **Play on player**, **Write to sticker** (with your phone's own NFC; no
-  Chrome needed), **Copy link** and **Remove**. It uses the same `Tap and Play/` folder and `cards.json` as the web
+  Chrome needed), **Copy link**, **Edit** and **Remove**. **Edit** changes a card after it was made: its name, song or
+  video, picture (replace or remove) or a word card's words. The card keeps its `content.json` link, so stickers and
+  printed cards keep working; the replaced files go to the Drive trash, and players show the change the next time they
+  scan the card while online. It uses the same `Tap and Play/` folder and `cards.json` as the web
   page, so cards made in either show up in both. Printing still happens on the web page (the app links to it).
 - **Setup**: the steps and the QR code that turn a factory-reset phone into a locked-down player (see *Kiosk mode*).
 
@@ -117,6 +120,10 @@ once per companion install. The player remembers the last 4 phones it was paired
 Treat the code like a key: anyone who scans it can pair.
 A player set up with this companion's *Setup* QR code (see *Kiosk mode*) is already paired with it: the setup QR
 carries the same token, so that companion skips this step. Other parents still pair once as above.
+
+**Is there a new player version?** The companion checks the latest GitHub release (at most once an hour, while it
+is open) and compares it with the player's version: *Parent tools* shows "Update available" in orange when the
+player is behind, and "Up to date" otherwise.
 
 **Updating the player.** *Update player* makes the player download
 `https://github.com/omrihak/nfc-card-game/releases/latest/download/tap-and-play.apk` and install it silently,

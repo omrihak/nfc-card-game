@@ -155,6 +155,7 @@ private fun CompanionApp(
 ) {
     val connection by remote.connection.collectAsState()
     val status by remote.status.collectAsState()
+    val latestVersion by remote.latestVersion.collectAsState()
     val remoteError by remote.error.collectAsState()
     val signedIn by cardsVm.signedIn.collectAsState()
     val cards by cardsVm.cards.collectAsState()
@@ -200,6 +201,7 @@ private fun CompanionApp(
             PlayerScreen(
                 connection = connection,
                 status = status,
+                latestVersion = latestVersion,
                 cards = cards,
                 signedIn = signedIn,
                 pairingToken = remote.token,
@@ -233,6 +235,8 @@ private fun CompanionApp(
                 onPlay = playCard,
                 onWriteSticker = stickers::begin,
                 onCopyLink = onCopyLink,
+                onEdit = cardsVm::edit,
+                onLoadWords = cardsVm::loadWords,
                 onRemove = cardsVm::remove,
                 onOpenWebManager = onOpenWebManager,
                 modifier = modifier,

@@ -104,6 +104,10 @@ class Drive(private val token: suspend () -> String) {
         text("PATCH", "$UPLOAD/files/$fileId?uploadType=media&fields=id", text, type)
     }
 
+    suspend fun rename(fileId: String, name: String) {
+        json("PATCH", "$API/files/$fileId?fields=id", JSONObject().put("name", name).toString(), "application/json")
+    }
+
     /** Moves a file or folder (with everything in it) to the trash. A file that no longer exists counts as done. */
     suspend fun trash(fileId: String) {
         try {

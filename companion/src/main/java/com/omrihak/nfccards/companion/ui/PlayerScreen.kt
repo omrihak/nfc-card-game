@@ -55,6 +55,7 @@ import com.omrihak.nfccards.companion.cards.Card as CardEntry
 import com.omrihak.nfccards.companion.player.AdminStickers
 import com.omrihak.nfccards.companion.player.Connection
 import com.omrihak.nfccards.companion.player.Pairing
+import com.omrihak.nfccards.companion.player.LatestRelease
 import com.omrihak.nfccards.companion.player.PlayerStatus
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -68,6 +69,7 @@ import kotlin.math.roundToInt
 fun PlayerScreen(
     connection: Connection,
     status: PlayerStatus?,
+    latestVersion: String?,
     cards: List<CardEntry>,
     signedIn: Boolean?,
     pairingToken: String,
@@ -86,8 +88,9 @@ fun PlayerScreen(
     modifier: Modifier = Modifier,
 ) {
     val online = connection is Connection.Connected && status != null
+    val newVersion = latestVersion?.takeIf { status != null && LatestRelease.isNewer(it, status.version) }
     val tools: @Composable () -> Unit = {
-        ParentToolsCard(status, online, canWriteStickers, onOpenSettings, onUpdate, onRelease, onWriteSticker)
+        ParentToolsCard(status, latestVersion, newVersion, online, canWriteStickers, onOpenSettings, onUpdate, onRelease, onWriteSticker)
     }
     LazyColumn(
         modifier,
@@ -353,6 +356,8 @@ private fun QrCode(text: String, modifier: Modifier = Modifier) {
 @Composable
 private fun ParentToolsCard(
     status: PlayerStatus?,
+    latestVersion: String?,
+    newVersion: String?,
     online: Boolean,
     canWriteStickers: Boolean,
     onOpenSettings: () -> Unit,
@@ -373,6 +378,15 @@ private fun ParentToolsCard(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
             )
+            if (newVersion != null) {
+                Text(
+                    "Update available",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFD9822B),
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+            }
             Text(if (expanded) "▴" else "▾", color = MaterialTheme.colorScheme.primary)
         }
         if (expanded) Column(
@@ -384,6 +398,20 @@ private fun ParentToolsCard(
                     "Player version ${status.version ?: "?"} · " +
                         if (status.deviceOwner) "full kiosk mode" else "not in full kiosk mode",
                     style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            if (newVersion != null) {
+                Text(
+                    "New version $newVersion is out. Press Update player to install it.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFD9822B),
+                )
+            } else if (status?.version != null && latestVersion != null) {
+                Text(
+                    "Up to date",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             updateLine(status)?.let {

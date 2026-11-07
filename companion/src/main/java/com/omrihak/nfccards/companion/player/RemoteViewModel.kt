@@ -49,6 +49,11 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private val _status = MutableStateFlow<PlayerStatus?>(null)
     val status: StateFlow<PlayerStatus?> = _status.asStateFlow()
 
+    /** The newest released version of the apps, once known; compared with the player's in the Player tab. */
+    private val _latestVersion = MutableStateFlow<String?>(null)
+    val latestVersion: StateFlow<String?> = _latestVersion.asStateFlow()
+    private var latestCheckedAt = 0L
+
     /** The last failed command, shown briefly. */
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
@@ -59,6 +64,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     /** Polls and listens for players only while the app is on screen. */
     fun setActive(active: Boolean) {
         if (active) {
+            checkLatestVersion()
             finder.start()
             if (pollJob == null) pollJob = viewModelScope.launch { poll() }
         } else {
@@ -66,6 +72,14 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
             pollJob?.cancel()
             pollJob = null
         }
+    }
+
+    /** At most once an hour; a failed check (offline) is simply tried again next time. */
+    private fun checkLatestVersion() {
+        val now = System.currentTimeMillis()
+        if (_latestVersion.value != null && now - latestCheckedAt < 60 * 60 * 1000L) return
+        latestCheckedAt = now
+        viewModelScope.launch { LatestRelease.fetch()?.let { _latestVersion.value = it } }
     }
 
     private suspend fun poll() {

@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,6 +36,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,6 +71,8 @@ fun CardsScreen(
     onPlay: (CardEntry) -> Unit,
     onWriteSticker: (CardEntry) -> Unit,
     onCopyLink: (CardEntry) -> Unit,
+    onEdit: (card: CardEntry, name: String, media: Uri?, image: Uri?, removeImage: Boolean, words: Map<String, CardStore.Word>?, onDone: () -> Unit) -> Unit,
+    onLoadWords: (CardEntry, (Map<String, CardStore.Word>) -> Unit) -> Unit,
     onRemove: (CardEntry) -> Unit,
     onOpenWebManager: () -> Unit,
     modifier: Modifier = Modifier,
@@ -77,6 +82,7 @@ fun CardsScreen(
         false -> SignIn(onSignIn, modifier)
         true -> {
             var confirmRemove by remember { mutableStateOf<CardEntry?>(null) }
+            var editing by remember { mutableStateOf<CardEntry?>(null) }
             LazyColumn(
                 modifier,
                 contentPadding = PaddingValues(16.dp),
@@ -105,6 +111,8 @@ fun CardsScreen(
                         onPlay = { onPlay(card) },
                         onWriteSticker = { onWriteSticker(card) },
                         onCopyLink = { onCopyLink(card) },
+                        onEdit = { editing = card },
+                        busy = progress != null,
                         onRemove = { confirmRemove = card },
                     )
                 }
@@ -120,6 +128,17 @@ fun CardsScreen(
                         }
                     }
                 }
+            }
+            editing?.let { card ->
+                EditCardDialog(
+                    card,
+                    onLoadWords = onLoadWords,
+                    onDismiss = { editing = null },
+                    onSave = { name, media, image, removeImage, words ->
+                        editing = null
+                        onEdit(card, name, media, image, removeImage, words) {}
+                    },
+                )
             }
             confirmRemove?.let { card ->
                 AlertDialog(
@@ -447,6 +466,119 @@ private fun FilePick(label: String, file: String?, enabled: Boolean, onPick: () 
     }
 }
 
+/**
+ * Change a card after it was made: its name, song or video, picture, or a word card's words. Whatever is left
+ * alone stays as it is, and the card's sticker and link keep working.
+ */
+@Composable
+private fun EditCardDialog(
+    card: CardEntry,
+    onLoadWords: (CardEntry, (Map<String, CardStore.Word>) -> Unit) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (name: String, media: Uri?, image: Uri?, removeImage: Boolean, words: Map<String, CardStore.Word>?) -> Unit,
+) {
+    val context = LocalContext.current
+    val isWord = card.type == CardStore.TYPE_WORD
+    val hasMedia = card.type == CardStore.TYPE_AUDIO || card.type == CardStore.TYPE_VIDEO
+    var name by remember { mutableStateOf(card.name) }
+    var media by remember { mutableStateOf<Uri?>(null) }
+    var image by remember { mutableStateOf<Uri?>(null) }
+    var removeImage by remember { mutableStateOf(false) }
+    var loadedWords by remember { mutableStateOf<Map<String, CardStore.Word>?>(null) }
+    var wordEn by remember { mutableStateOf("") }
+    var wordHe by remember { mutableStateOf("") }
+    var wordHeAsk by remember { mutableStateOf("") }
+    LaunchedEffect(card.contentUrl) {
+        if (isWord) {
+            onLoadWords(card) { words ->
+                wordEn = words[CardStore.LANG_EN]?.text.orEmpty()
+                wordHe = words[CardStore.LANG_HE]?.text.orEmpty()
+                wordHeAsk = words[CardStore.LANG_HE]?.ask.orEmpty()
+                loadedWords = words
+            }
+        }
+    }
+    val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) media = uri }
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            image = uri
+            removeImage = false
+        }
+    }
+    val wordsReady = !isWord || loadedWords != null
+    val words = if (isWord) wordsFromForm(wordEn, wordHe, wordHeAsk) else null
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit \"${card.name}\"") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it.take(80) },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (hasMedia) {
+                    FilePick(
+                        label = if (card.type == CardStore.TYPE_VIDEO) "Replace the video (optional)" else "Replace the song (optional)",
+                        file = media?.let { displayName(context, it) },
+                        enabled = true,
+                        onPick = { pickMedia.launch(if (card.type == CardStore.TYPE_VIDEO) "video/*" else "audio/*") },
+                        onClear = { media = null },
+                    )
+                }
+                if (isWord) {
+                    if (!wordsReady) Text("Loading the words…", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = wordEn, onValueChange = { wordEn = it.take(60) }, label = { Text("English word") },
+                        singleLine = true, enabled = wordsReady, modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = wordHe, onValueChange = { wordHe = it.take(60) }, label = { Text("Hebrew word") },
+                        singleLine = true, enabled = wordsReady, modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = wordHeAsk, onValueChange = { wordHeAsk = it.take(60) },
+                        label = { Text("Hebrew word inside a question (optional)") },
+                        singleLine = true, enabled = wordsReady, modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                FilePick(
+                    label = "Replace the picture (optional)",
+                    file = image?.let { displayName(context, it) },
+                    enabled = !removeImage,
+                    onPick = { pickImage.launch("image/*") },
+                    onClear = { image = null },
+                )
+                Row(
+                    Modifier.fillMaxWidth().selectable(
+                        selected = removeImage,
+                        role = Role.Checkbox,
+                        onClick = { removeImage = !removeImage; if (removeImage) image = null },
+                    ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = removeImage, onCheckedChange = null)
+                    Text("Remove the picture", Modifier.padding(start = 8.dp))
+                }
+                Text(
+                    "The card's sticker and link stay the same. Players show the change the next time the card is scanned.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(name.trim(), media, image, removeImage, words) },
+                enabled = name.isNotBlank() && wordsReady && (!isWord || words!!.isNotEmpty()),
+            ) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CardRow(
@@ -456,6 +588,8 @@ private fun CardRow(
     onPlay: () -> Unit,
     onWriteSticker: () -> Unit,
     onCopyLink: () -> Unit,
+    onEdit: () -> Unit,
+    busy: Boolean,
     onRemove: () -> Unit,
 ) {
     Card(Modifier.fillMaxWidth()) {
@@ -466,6 +600,7 @@ private fun CardRow(
                 TextButton(onClick = onPlay, enabled = playerOnline) { Text("Play on player") }
                 if (canWriteStickers) TextButton(onClick = onWriteSticker) { Text("Write to sticker") }
                 TextButton(onClick = onCopyLink) { Text("Copy link") }
+                TextButton(onClick = onEdit, enabled = !busy) { Text("Edit") }
                 TextButton(onClick = onRemove) { Text("Remove", color = MaterialTheme.colorScheme.error) }
             }
         }

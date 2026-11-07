@@ -9,6 +9,7 @@ import com.omrihak.nfccards.companion.player.Pairing
 import com.omrihak.nfccards.companion.player.PlayerError
 import com.omrihak.nfccards.companion.player.PlayerStatus
 import org.json.JSONObject
+import com.omrihak.nfccards.companion.player.LatestRelease
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -17,6 +18,34 @@ import org.junit.Test
 import java.io.IOException
 
 class CompanionTest {
+
+    @Test fun latestReleaseVersions() {
+        assertEquals("1.4.2", LatestRelease.parseTag("""{"tag_name":"v1.4.2"}"""))
+        assertNull(LatestRelease.parseTag("not json"))
+        assertTrue(LatestRelease.isNewer("1.10.0", "1.9.3"))
+        assertTrue(LatestRelease.isNewer("2.0.0", "1.99.99"))
+        assertFalse(LatestRelease.isNewer("1.4.2", "1.4.2"))
+        assertFalse(LatestRelease.isNewer("1.4.1", "1.4.2"))
+        assertFalse(LatestRelease.isNewer("1.4.2", null))
+        assertFalse(LatestRelease.isNewer("weird", "1.0.0"))
+    }
+
+    @Test fun editedContentChangesOnlyWhatWasAsked() {
+        val old = org.json.JSONObject(
+            CardStore.contentJson("audio", "https://m/old", "https://i/old", "Old name", "2026-01-01T00:00:00Z"),
+        )
+        val renamed = CardStore.editedContent(old, "New name", null, null, false, null)
+        assertEquals("New name", renamed.getString("name"))
+        assertEquals("https://m/old", renamed.getString("media"))
+        assertEquals("https://i/old", renamed.getString("image"))
+        val swapped = CardStore.editedContent(old, "Old name", "https://m/new", "https://i/new", false, null)
+        assertEquals("https://m/new", swapped.getString("media"))
+        assertEquals("https://i/new", swapped.getString("image"))
+        assertFalse(CardStore.editedContent(old, "Old name", null, null, true, null).has("image"))
+        val words = CardStore.editedContent(old, "x", null, null, false, mapOf("en" to CardStore.Word("dog")))
+        assertEquals("dog", words.getJSONObject("words").getJSONObject("en").getString("text"))
+        assertEquals("https://m/old", old.getString("media")) // the original is not touched
+    }
 
     @Test fun statusParsesBattery() {
         val s = PlayerStatus.parse("""{"app":"tapandplay","state":"idle","paused":false,"volume":3,"battery":42,"charging":true}""")

@@ -125,6 +125,68 @@ class CardStore(private val drive: Drive) {
         return card
     }
 
+    /**
+     * Changes a card in place. The card keeps its content.json (so its sticker, printed code and link keep
+     * working): new files are uploaded next to it, content.json is rewritten to point at them, and the
+     * replaced files go to the Drive trash. Players pick the change up the next time they scan the card.
+     *
+     * [name] the new name (same as before: unchanged). [media] replaces the song or video, [image] the
+     * picture, [removeImage] drops it. [words] replaces a word card's words.
+     */
+    suspend fun update(
+        card: Card,
+        name: String,
+        media: Upload?,
+        image: Upload?,
+        removeImage: Boolean,
+        words: Map<String, Word>?,
+        onProgress: (String, Float) -> Unit,
+    ): Card {
+        val contentId = Drive.idFromLink(card.contentUrl) ?: error("This card has no content.json link")
+        val folderId = card.folderId ?: error("This card has no folder in the index")
+        onProgress("Reading the card…", 0f)
+        val content = JSONObject(drive.readText(contentId))
+        val replaced = mutableListOf<String>()
+        fun remember(key: String) {
+            content.optString(key).takeIf { it.isNotEmpty() }?.let { Drive.idFromLink(it) }?.let { replaced.add(it) }
+        }
+
+        val total = ((media?.source?.size ?: 0) + (image?.source?.size ?: 0)).coerceAtLeast(1).toFloat()
+        var done = 0L
+        suspend fun uploadOne(upload: Upload, label: String): String {
+            val file = drive.upload(upload.source, upload.fileName, folderId) { fraction ->
+                onProgress("Uploading $label…", (done + fraction * upload.source.size) / total)
+            }
+            done += upload.source.size
+            drive.makePublic(file.id)
+            return Drive.shareLink(file.id)
+        }
+
+        val newMedia = media?.let { uploadOne(it, if (card.type == TYPE_VIDEO) "video" else "song") }
+        val newImage = image?.let { uploadOne(it, "picture") }
+
+        onProgress("Saving…", 1f)
+        if (newMedia != null) remember("media")
+        if (newImage != null || removeImage) remember("image")
+        val edited = editedContent(content, name, newMedia, newImage, removeImage, words)
+        drive.overwriteText(contentId, edited.toString(2))
+        if (name != card.name) drive.rename(folderId, name)
+        for (id in replaced) runCatching { drive.trash(id) } // best effort: the card already works
+
+        val entry = JSONObject(card.raw.toString()).put("name", name)
+        if (words != null) entry.put("langs", JSONArray(wordsJson(words).keys().asSequence().toList()))
+        val updated = Card(entry)
+        val (index, cards) = readIndex()
+        writeIndex(index, cards.map { if (it.contentUrl == card.contentUrl) updated else it })
+        return updated
+    }
+
+    /** A word card's words, as in its content.json. */
+    suspend fun words(card: Card): Map<String, Word> {
+        val contentId = Drive.idFromLink(card.contentUrl) ?: return emptyMap()
+        return parseWords(JSONObject(drive.readText(contentId)).optJSONObject("words"))
+    }
+
     /** Moves the card's folder to the Drive trash (restorable for 30 days) and takes it off the list. */
     suspend fun remove(card: Card) {
         card.folderId?.let { drive.trash(it) }
@@ -203,6 +265,31 @@ class CardStore(private val drive: Drive) {
             if (image != null) json.put("image", image)
             extra.keys().forEach { json.put(it, extra.get(it)) }
             return json.put("name", name).put("createdAt", createdAt).toString(2)
+        }
+
+        fun parseWords(json: JSONObject?): Map<String, Word> = buildMap {
+            json ?: return@buildMap
+            for (lang in json.keys()) {
+                val entry = json.optJSONObject(lang) ?: continue
+                put(lang, Word(entry.optString("text"), entry.optString("ask").ifEmpty { null }))
+            }
+        }
+
+        /** [content] (a card's content.json) with the changes of an edit applied; null/false leaves a field alone. */
+        fun editedContent(
+            content: JSONObject,
+            name: String,
+            media: String?,
+            image: String?,
+            removeImage: Boolean,
+            words: Map<String, Word>?,
+        ): JSONObject {
+            val json = JSONObject(content.toString())
+            json.put("name", name)
+            if (media != null) json.put("media", media)
+            if (image != null) json.put("image", image) else if (removeImage) json.remove("image")
+            if (words != null) json.put("words", wordsJson(words))
+            return json
         }
 
         /** `{ "en": {"text": "dog"}, "he": {"text": "כלב", "ask": "הכלב"} }`; blank words and asks are left out. */

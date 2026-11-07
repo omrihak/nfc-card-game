@@ -107,6 +107,29 @@ class CardsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Changes a card in place (see [CardStore.update]); its sticker and link stay the same. */
+    fun edit(
+        card: Card,
+        name: String,
+        media: Uri?,
+        image: Uri?,
+        removeImage: Boolean,
+        words: Map<String, CardStore.Word>?,
+        onDone: () -> Unit,
+    ) = build(onDone) { onProgress ->
+        val updated = store.update(card, name, media?.let { upload(it) }, image?.let { upload(it) }, removeImage, words, onProgress)
+        "\"${updated.name}\" is changed. Players show the change the next time the card is scanned (when they're online)."
+    }
+
+    /** Reads a word card's words for the edit form; [onLoaded] gets an empty map if that fails. */
+    fun loadWords(card: Card, onLoaded: (Map<String, CardStore.Word>) -> Unit) {
+        viewModelScope.launch {
+            var words = emptyMap<String, CardStore.Word>()
+            attempt { words = store.words(card) }
+            onLoaded(words)
+        }
+    }
+
     fun remove(card: Card) {
         viewModelScope.launch {
             _loading.value = true
