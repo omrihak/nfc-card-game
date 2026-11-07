@@ -159,7 +159,8 @@ class MainActivity : ComponentActivity() {
         sleeping = true
         qrScanner.stop()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        if (!kiosk.sleepScreen()) setDimmed(true)
+        kiosk.sleepScreen()
+        setDimmed(true) // black and dark right away, even if the screen then stays on until its timeout
     }
 
     private fun setDimmed(on: Boolean) {

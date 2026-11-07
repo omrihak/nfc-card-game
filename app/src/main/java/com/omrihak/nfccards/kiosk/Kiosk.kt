@@ -78,13 +78,14 @@ class Kiosk(private val activity: Activity) {
      */
     fun sleepScreen(): Boolean {
         if (!isDeviceOwner) return false
+        // Whatever lockNow does, let the phone's own timeout turn the screen off even while charging.
+        dpm.setGlobalSetting(admin, Settings.Global.STAY_ON_WHILE_PLUGGED_IN, "0")
         return try {
             dpm.lockNow()
             Log.i(TAG, "Screen turned off (lockNow)")
             true
         } catch (e: Exception) {
             Log.w(TAG, "lockNow refused; falling back to the screen timeout", e)
-            dpm.setGlobalSetting(admin, Settings.Global.STAY_ON_WHILE_PLUGGED_IN, "0")
             false
         }
     }
