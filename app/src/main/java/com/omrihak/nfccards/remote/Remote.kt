@@ -8,7 +8,9 @@ import android.os.BatteryManager
 import android.media.AudioManager
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.PowerManager
 import android.util.Log
 import com.omrihak.nfccards.kiosk.Kiosk
 import com.omrihak.nfccards.kiosk.SelfUpdater
@@ -40,8 +42,23 @@ class Remote(
     private val nsd = context.getSystemService(NsdManager::class.java)
     private var registration: NsdManager.RegistrationListener? = null
 
+    // With the screen off the phone would doze, drop Wi-Fi and the companion would lose it:
+    // keep Wi-Fi and the CPU awake for as long as the server runs.
+    private val wifiLock = (context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager)
+        ?.createWifiLock(@Suppress("DEPRECATION") WifiManager.WIFI_MODE_FULL_HIGH_PERF, "tapandplay:remote")
+        ?.apply { setReferenceCounted(false) }
+    private val wakeLock = context.getSystemService(PowerManager::class.java)
+        ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "tapandplay:remote")
+        ?.apply { setReferenceCounted(false) }
+
     fun start() {
         server.start()
+        try {
+            wifiLock?.acquire()
+            wakeLock?.acquire()
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not keep Wi-Fi awake", e)
+        }
         if (registration != null) return
         val info = NsdServiceInfo().apply {
             serviceName = "Tap and Play (${Build.MODEL})"
@@ -71,6 +88,8 @@ class Remote(
 
     fun stop() {
         server.stop()
+        runCatching { if (wifiLock?.isHeld == true) wifiLock.release() }
+        runCatching { if (wakeLock?.isHeld == true) wakeLock.release() }
         registration?.let {
             try {
                 nsd.unregisterService(it)
