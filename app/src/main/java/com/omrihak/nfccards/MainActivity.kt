@@ -160,10 +160,10 @@ class MainActivity : ComponentActivity() {
         qrScanner.stop()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         kiosk.sleepScreen()
-        setDimmed(true) // black and dark right away, even if the screen then stays on until its timeout
+        applyDimmed(true) // black and dark right away, even if the screen then stays on until its timeout
     }
 
-    private fun setDimmed(on: Boolean) {
+    private fun applyDimmed(on: Boolean) {
         dimmed = on
         window.attributes = window.attributes.apply {
             screenBrightness = if (on) 0.01f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
@@ -173,7 +173,7 @@ class MainActivity : ComponentActivity() {
     private fun wake() {
         sleeping = false
         lastBusyAt = SystemClock.elapsedRealtime()
-        setDimmed(false)
+        applyDimmed(false)
         kiosk.enter() // puts "stay on while charging" back
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         startQrScanner()
