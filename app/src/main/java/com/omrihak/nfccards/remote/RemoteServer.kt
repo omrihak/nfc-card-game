@@ -32,7 +32,7 @@ class RemoteServer(
     @Volatile private var socket: ServerSocket? = null
 
     fun start() {
-        if (job != null) return
+        if (job?.isActive == true) return
         job = scope.launch(Dispatchers.IO) {
             val server = try {
                 ServerSocket().apply {

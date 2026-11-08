@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.media.AudioManager
+import android.net.ConnectivityManager
+import android.net.Network
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
@@ -41,6 +43,8 @@ class Remote(
     }
     private val nsd = context.getSystemService(NsdManager::class.java)
     private var registration: NsdManager.RegistrationListener? = null
+    private val connectivity = context.getSystemService(ConnectivityManager::class.java)
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     // With the screen off the phone would doze, drop Wi-Fi and the companion would lose it:
     // keep Wi-Fi and the CPU awake for as long as the server runs.
@@ -59,6 +63,30 @@ class Remote(
         } catch (e: Exception) {
             Log.w(TAG, "Could not keep Wi-Fi awake", e)
         }
+        announce()
+        watchNetwork()
+    }
+
+    /** Wi-Fi coming back (maybe with a new address) loses the announcement: make it again. */
+    private fun watchNetwork() {
+        if (networkCallback != null) return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                Log.i(TAG, "Network is back; announcing again")
+                server.start() // no-op while it still listens
+                unannounce()
+                announce()
+            }
+        }
+        try {
+            connectivity?.registerDefaultNetworkCallback(callback)
+            networkCallback = callback
+        } catch (e: Exception) {
+            Log.w(TAG, "Cannot watch the network", e)
+        }
+    }
+
+    private fun announce() {
         if (registration != null) return
         val info = NsdServiceInfo().apply {
             serviceName = "Tap and Play (${Build.MODEL})"
@@ -72,6 +100,7 @@ class Remote(
 
             override fun onRegistrationFailed(info: NsdServiceInfo, error: Int) {
                 Log.w(TAG, "Announcement failed: $error")
+                if (registration === this) registration = null
             }
 
             override fun onServiceUnregistered(info: NsdServiceInfo) = Unit
@@ -86,10 +115,7 @@ class Remote(
         }
     }
 
-    fun stop() {
-        server.stop()
-        runCatching { if (wifiLock?.isHeld == true) wifiLock.release() }
-        runCatching { if (wakeLock?.isHeld == true) wakeLock.release() }
+    private fun unannounce() {
         registration?.let {
             try {
                 nsd.unregisterService(it)
@@ -98,6 +124,15 @@ class Remote(
             }
         }
         registration = null
+    }
+
+    fun stop() {
+        server.stop()
+        runCatching { if (wifiLock?.isHeld == true) wifiLock.release() }
+        runCatching { if (wakeLock?.isHeld == true) wakeLock.release() }
+        networkCallback?.let { runCatching { connectivity?.unregisterNetworkCallback(it) } }
+        networkCallback = null
+        unannounce()
     }
 
     private class MediaVolume(context: Context) : RemoteApi.Volume {
