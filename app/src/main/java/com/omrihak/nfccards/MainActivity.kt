@@ -1,6 +1,7 @@
 package com.omrihak.nfccards
 
 import android.Manifest
+import android.app.KeyguardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ApplicationInfo
@@ -183,8 +184,23 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         if (sleeping) wake() else lastBusyAt = SystemClock.elapsedRealtime()
         kiosk.enter()
+        dismissLockScreen()
         nfcReader.start()
         startQrScanner()
+    }
+
+    /**
+     * The app shows over the lock screen (setShowWhenLocked), so after the screen went off (idle
+     * lockNow, the screen timeout or the power button) it looks open while the phone is still locked.
+     * Android does not poll for NFC tags while locked, reader mode included: cards did nothing until
+     * the phone was unlocked (e.g. by the parent opening Settings). With no screen lock (or the
+     * kiosk's keyguard disabled) this unlocks without anything on screen; with a PIN it asks for it.
+     */
+    private fun dismissLockScreen() {
+        val keyguard = getSystemService(KeyguardManager::class.java)
+        if (!keyguard.isKeyguardLocked) return
+        Log.w(TAG, "Phone is locked behind the app; NFC is off until it is unlocked. Dismissing the lock screen")
+        keyguard.requestDismissKeyguard(this, null)
     }
 
     override fun onPause() {

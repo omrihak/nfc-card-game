@@ -232,6 +232,7 @@ rate-limit them; that is a risk mainly for the first download.
 
 - Settings -> NFC: on. (Samsung: also check "Contactless payments" doesn't grab taps.) The NFC antenna is behind the phone, near the camera; put the card flat against the back.
 - Screen timeout is handled by the app (screen stays on while it is open).
+- Screen lock: **None** (Settings -> Security -> Screen lock). Android reads no NFC cards while the phone is locked, even with the app showing on top; with a PIN, the app asks for it every time the screen comes back on.
 - Lock the toddler in: see *Kiosk mode* below. The app always hides the system bars and ignores Back.
 - The phone will sit on a charger forever: enable battery protection (Samsung: Battery -> Battery protection -> Maximum 85%).
 
