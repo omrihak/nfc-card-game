@@ -1,6 +1,7 @@
 package com.omrihak.nfccards.nfc
 
 import android.app.Activity
+import android.app.PendingIntent
 import android.content.Intent
 import android.nfc.NdefMessage
 import android.nfc.NfcAdapter
@@ -11,8 +12,12 @@ import android.os.Parcelable
 import android.util.Log
 
 /**
- * Read-only NFC. Uses reader mode while the activity is in the foreground: cards are read
- * without the system's tag dispatch, chooser dialogs, or tag sounds.
+ * Read-only NFC. While the activity is in the foreground, every tag is sent to it (foreground
+ * dispatch): Android reads the tag and delivers it to the activity's onNewIntent, which passes it
+ * to [handle]. This is the same path that opens the app from a tap when it is closed.
+ *
+ * (It used reader mode before. On some phones reader mode never saw a card while the app was
+ * open, though the same card read fine from Settings through the system dispatch.)
  *
  * Only emits the URI found on the card (or null for a card that has no NDEF URI).
  * It knows nothing about what the URI means.
@@ -20,55 +25,68 @@ import android.util.Log
 class NfcReader(
     private val activity: Activity,
     private val onCard: (uri: String?) -> Unit,
-) : NfcAdapter.ReaderCallback {
+) {
 
     private val adapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(activity)
 
+    /** Call from onResume. */
     fun start() {
         val a = adapter
         when {
-            a == null -> Log.e(TAG, "This device has no NFC")
+            a == null -> { Log.e(TAG, "This device has no NFC"); return }
             !a.isEnabled -> Log.e(TAG, "NFC is turned off in system settings")
         }
-        a?.enableReaderMode(
-            activity,
-            this,
-            NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or
-                NfcAdapter.FLAG_READER_NFC_F or NfcAdapter.FLAG_READER_NFC_V or
-                NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
-            null,
-        )
+        val intent = Intent(activity, activity.javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        // Mutable: Android fills in the tag extras.
+        val flags = if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
+        val pending = PendingIntent.getActivity(activity, 0, intent, flags)
+        try {
+            // No filters: every tag comes here while the app is open.
+            a!!.enableForegroundDispatch(activity, pending, null, null)
+            Log.i(TAG, "Listening for cards")
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not start NFC", e)
+        }
     }
 
+    /** Call from onPause. */
     fun stop() {
-        adapter?.disableReaderMode(activity)
+        try {
+            adapter?.disableForegroundDispatch(activity)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not stop NFC", e)
+        }
     }
 
-    /** Called on a binder thread. */
-    override fun onTagDiscovered(tag: Tag) {
+    /** A tag intent (from the foreground dispatch, or one that launched the app): emits its URI. Returns false for any other intent. */
+    fun handle(intent: Intent): Boolean {
+        if (intent.action !in TAG_ACTIONS) return false
         val uri = try {
-            Ndef.get(tag)?.let { ndef -> uriFrom(ndef.cachedNdefMessage ?: readMessage(ndef)) }
+            uriFrom(intent) ?: intent.dataString
         } catch (e: Exception) {
             Log.w(TAG, "Could not read tag", e)
             null
         }
-        Log.i(TAG, "Tag ${tag.id.joinToString("") { "%02x".format(it) }} -> ${uri ?: "(no NDEF URI)"}")
+        val id = intent.getByteArrayExtra(NfcAdapter.EXTRA_ID)?.joinToString("") { "%02x".format(it) }
+        Log.i(TAG, "Tag $id (${intent.action}) -> ${uri ?: "(no NDEF URI)"}")
         onCard(uri)
-    }
-
-    private fun readMessage(ndef: Ndef): NdefMessage? = ndef.use {
-        it.connect()
-        it.ndefMessage
+        return true
     }
 
     companion object {
         private const val TAG = "NfcReader"
 
+        private val TAG_ACTIONS = setOf(
+            NfcAdapter.ACTION_NDEF_DISCOVERED,
+            NfcAdapter.ACTION_TECH_DISCOVERED,
+            NfcAdapter.ACTION_TAG_DISCOVERED,
+        )
+
         /** First URI record in the message (handles well-known URI and absolute-URI records). */
         fun uriFrom(message: NdefMessage?): String? =
             message?.records?.firstNotNullOfOrNull { it.toUri()?.toString() }
 
-        /** For when a tap launches the app from closed (NDEF_DISCOVERED intent). */
+        /** The URI in a tag intent: the NDEF messages Android already read, else the tag's cached message. */
         fun uriFrom(intent: Intent): String? {
             val raw: Array<out Parcelable>? = if (Build.VERSION.SDK_INT >= 33) {
                 intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, Parcelable::class.java)
@@ -76,7 +94,15 @@ class NfcReader(
                 @Suppress("DEPRECATION")
                 intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)
             }
-            return raw?.filterIsInstance<NdefMessage>()?.firstNotNullOfOrNull { uriFrom(it) }
+            raw?.filterIsInstance<NdefMessage>()?.firstNotNullOfOrNull { uriFrom(it) }?.let { return it }
+
+            val tag: Tag? = if (Build.VERSION.SDK_INT >= 33) {
+                intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+            }
+            return tag?.let { Ndef.get(it)?.cachedNdefMessage }?.let { uriFrom(it) }
         }
     }
 }

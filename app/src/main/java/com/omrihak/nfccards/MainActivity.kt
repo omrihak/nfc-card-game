@@ -1,11 +1,9 @@
 package com.omrihak.nfccards
 
 import android.Manifest
-import android.app.KeyguardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ApplicationInfo
-import android.nfc.NfcAdapter
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
@@ -85,7 +83,7 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
 
         kiosk = Kiosk(this)
-        nfcReader = NfcReader(this) { uri -> runOnUiThread { onCard(uri) } }
+        nfcReader = NfcReader(this) { uri -> onCard(uri) }
         qrScanner = QrScanner(this) { text -> onCard(text) }
 
         setContent { App(viewModel, qrScanner, dimmed) }
@@ -113,10 +111,10 @@ class MainActivity : ComponentActivity() {
         handleLaunchIntent(intent)
     }
 
+    /** A card tap (while open, or one that launched the app), or a simulated one. */
     private fun handleLaunchIntent(intent: Intent) {
+        if (nfcReader.handle(intent)) return
         when (intent.action) {
-            NfcAdapter.ACTION_NDEF_DISCOVERED ->
-                onCard(NfcReader.uriFrom(intent) ?: intent.dataString)
             // Debug builds only: simulate a card tap without a tag, e.g.
             // adb shell am start -n com.omrihak.nfccards/.MainActivity -a android.intent.action.VIEW -d "<card url>"
             Intent.ACTION_VIEW ->
@@ -184,23 +182,8 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         if (sleeping) wake() else lastBusyAt = SystemClock.elapsedRealtime()
         kiosk.enter()
-        dismissLockScreen()
         nfcReader.start()
         startQrScanner()
-    }
-
-    /**
-     * The app shows over the lock screen (setShowWhenLocked), so after the screen went off (idle
-     * lockNow, the screen timeout or the power button) it looks open while the phone is still locked.
-     * Android does not poll for NFC tags while locked, reader mode included: cards did nothing until
-     * the phone was unlocked (e.g. by the parent opening Settings). With no screen lock (or the
-     * kiosk's keyguard disabled) this unlocks without anything on screen; with a PIN it asks for it.
-     */
-    private fun dismissLockScreen() {
-        val keyguard = getSystemService(KeyguardManager::class.java)
-        if (!keyguard.isKeyguardLocked) return
-        Log.w(TAG, "Phone is locked behind the app; NFC is off until it is unlocked. Dismissing the lock screen")
-        keyguard.requestDismissKeyguard(this, null)
     }
 
     override fun onPause() {
