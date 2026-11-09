@@ -113,7 +113,8 @@ finds it by itself and remembers it. Some routers block that (guest networks, "A
 your network -> IP address). Giving the player a fixed IP in your router's DHCP settings keeps that working.
 
 **Pairing.** The player only obeys phones it has been paired with. The first time the companion finds the player,
-it shows a big QR code: hold it up to the player's camera (the small circle in its corner). The player bounces
+it shows a big QR code: touch the player's screen to turn its camera on (a small circle appears in its corner),
+then hold the QR code up to it. The player bounces
 with a green ring and the companion turns into the remote control. (No camera? *Or write it to a sticker* puts the
 same code on an NFC sticker; tap that on the player once.) The code is `tapandplay://pair?token=<secret>`, made
 once per companion install. The player remembers the last 4 phones it was paired with, so both parents can pair.
@@ -207,13 +208,17 @@ More games can be added later as other `game` values; see [docs/plans/find-the-c
 
 - Same card while it is playing: ignored. A different card: switches immediately.
 - Double-tap the screen: pause / resume (a single tap does nothing). Hold for 4 seconds: stop and return to the idle screen. Audio and video play once, then the app returns to the idle screen.
+- The player reads **either NFC cards or QR codes**, switched in the companion app (Parent tools -> *Player reads*).
+  NFC is the default. Some phones (Samsung) stop reading NFC cards whenever a camera is open, so the camera is
+  only on in QR mode, and before any companion is paired: then a touch turns it on for 30 seconds, so the first
+  pairing QR code can be scanned.
 - QR codes work like cards: hold one up to the front camera (live view in the small circle, top-left). A code
   containing the `content.json` link plays it; it fires once, and again only after being out of view for 2 seconds.
   Admin card URIs work as QR codes too. In kiosk mode the camera permission is granted automatically.
 - Battery level is shown small in the top-right corner (the system status bar is hidden).
 - Anything that goes wrong (unknown tag, no internet, bad JSON, missing/unsupported media...) returns to the idle screen with a small wordless wobble. Details are in Logcat (tags `NfcReader`, `ContentResolver`, `MediaCache`, `MainViewModel`).
 - To save battery, after a minute without a song playing (nothing playing, or paused) the player turns its camera off
-  and, in kiosk mode, its screen; in a normal install it only stops keeping the screen on, so the system's own
+  (in QR mode) and, in kiosk mode, its screen; in a normal install it only stops keeping the screen on, so the system's own
   timeout turns it off. A touch, the power button, a card tap or playing something from the companion wakes it.
 - The companion shows the player's battery level next to its connection status.
 - Volume follows the phone's volume (which the companion app can change).

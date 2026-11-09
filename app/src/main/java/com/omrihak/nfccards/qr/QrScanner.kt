@@ -51,16 +51,21 @@ class QrScanner(
     private val hints = mapOf(DecodeHintType.TRY_HARDER to true)
 
     private var starting = false
+
+    /** False after [stop], so a camera still starting up does not turn on after all. */
+    private var wanted = false
     private var lastCode: String? = null
     private var lastSeenAt = 0L
 
     /** Needs the camera permission. Safe to call repeatedly. */
     fun start() {
+        wanted = true
         if (isRunning || starting) return
         starting = true
         val future = ProcessCameraProvider.getInstance(activity)
         future.addListener({
             starting = false
+            if (!wanted) return@addListener
             try {
                 val provider = future.get()
                 if (!provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
@@ -94,6 +99,7 @@ class QrScanner(
 
     /** Turns the camera off (saves battery); [start] turns it on again. */
     fun stop() {
+        wanted = false
         if (!isRunning) return
         ProcessCameraProvider.getInstance(activity).get().unbindAll()
         isRunning = false

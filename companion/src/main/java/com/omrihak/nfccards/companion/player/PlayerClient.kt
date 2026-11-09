@@ -29,6 +29,8 @@ data class PlayerStatus(
     val update: String = "idle",
     /** Why the last update failed, or that there was nothing newer. */
     val updateMessage: String? = null,
+    /** True: the player scans QR codes (camera on), false: NFC cards only. Null for older players. */
+    val qrScanning: Boolean? = null,
 ) {
     val isPlayingSomething get() = state == "audio" || state == "video"
     val isUpdating get() = update == "downloading" || update == "installing"
@@ -53,6 +55,7 @@ data class PlayerStatus(
                 charging = json.optBoolean("charging"),
                 update = json.optString("update", "idle"),
                 updateMessage = json.optStringOrNull("updateMessage"),
+                qrScanning = if (json.has("qrScanning")) json.optBoolean("qrScanning") else null,
             )
         }
 
@@ -94,6 +97,7 @@ class PlayerClient(val address: String, private val token: String) {
     suspend fun stop() = call("POST", "/api/stop")
     suspend fun setVolume(level: Int) = call("POST", "/api/volume", JSONObject().put("level", level))
     suspend fun stepVolume(step: Int) = call("POST", "/api/volume", JSONObject().put("step", step))
+    suspend fun setQrScanning(on: Boolean) = call("POST", "/api/admin/qr", JSONObject().put("on", on))
     suspend fun openSettings() = call("POST", "/api/admin/settings")
     suspend fun release() = call("POST", "/api/admin/release")
     suspend fun update() = call("POST", "/api/admin/update")

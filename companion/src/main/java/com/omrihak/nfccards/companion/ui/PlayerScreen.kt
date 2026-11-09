@@ -81,6 +81,7 @@ fun PlayerScreen(
     onVolumeStep: (Int) -> Unit,
     onPlay: (CardEntry) -> Unit,
     onConnectManually: (String) -> Unit,
+    onQrScanning: (Boolean) -> Unit,
     onOpenSettings: () -> Unit,
     onUpdate: () -> Unit,
     onRelease: () -> Unit,
@@ -90,7 +91,7 @@ fun PlayerScreen(
     val online = connection is Connection.Connected && status != null
     val newVersion = latestVersion?.takeIf { status != null && LatestRelease.isNewer(it, status.version) }
     val tools: @Composable () -> Unit = {
-        ParentToolsCard(status, latestVersion, newVersion, online, canWriteStickers, onOpenSettings, onUpdate, onRelease, onWriteSticker)
+        ParentToolsCard(status, latestVersion, newVersion, online, canWriteStickers, onQrScanning, onOpenSettings, onUpdate, onRelease, onWriteSticker)
     }
     LazyColumn(
         modifier,
@@ -315,7 +316,8 @@ private fun PairCard(token: String, canWriteStickers: Boolean, onWriteSticker: (
         ) {
             Text("Pair with the player", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Hold this up to the player's camera (the small circle in its corner). " +
+                "Touch the player's screen to turn its camera on (a small circle appears in its corner), " +
+                    "then hold this up to it. " +
                     "The player bounces with a green ring, and this page turns into the remote control.",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
@@ -353,6 +355,31 @@ private fun QrCode(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+/** The player reads NFC cards or QR codes: on some phones (Samsung) the camera stops NFC, so not both. */
+@Composable
+private fun InputSwitch(qrScanning: Boolean, online: Boolean, onQrScanning: (Boolean) -> Unit) {
+    Text("Player reads", style = MaterialTheme.typography.labelLarge)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for ((qr, label) in listOf(false to "NFC cards", true to "QR codes")) {
+            val modifier = Modifier.weight(1f)
+            if (qr == qrScanning) {
+                FilledTonalButton(onClick = {}, enabled = online, modifier = modifier) { Text("✓ $label") }
+            } else {
+                OutlinedButton(onClick = { onQrScanning(qr) }, enabled = online, modifier = modifier) { Text(label) }
+            }
+        }
+    }
+    Text(
+        if (qrScanning) {
+            "The player's camera is on. On some phones (Samsung) NFC cards don't work while it is."
+        } else {
+            "The player's camera is off. Switch to QR codes to show it a code."
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
 @Composable
 private fun ParentToolsCard(
     status: PlayerStatus?,
@@ -360,6 +387,7 @@ private fun ParentToolsCard(
     newVersion: String?,
     online: Boolean,
     canWriteStickers: Boolean,
+    onQrScanning: (Boolean) -> Unit,
     onOpenSettings: () -> Unit,
     onUpdate: () -> Unit,
     onRelease: () -> Unit,
@@ -421,6 +449,7 @@ private fun ParentToolsCard(
                     color = if (status?.update == "failed") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            status?.qrScanning?.let { qr -> InputSwitch(qr, online, onQrScanning) }
             OutlinedButton(onClick = onOpenSettings, enabled = online, modifier = Modifier.fillMaxWidth()) {
                 Text("Open settings on player")
             }

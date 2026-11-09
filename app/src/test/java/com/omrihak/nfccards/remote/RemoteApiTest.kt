@@ -17,6 +17,8 @@ class RemoteApiTest {
         override fun pause() { calls += "pause" }
         override fun resume() { calls += "resume" }
         override fun stop() { calls += "stop" }
+        override var qrScanning = false
+        override fun setQrScanning(on: Boolean) { qrScanning = on }
     }
 
     private class FakeVolume : RemoteApi.Volume {
@@ -95,6 +97,20 @@ class RemoteApiTest {
         assertEquals("downloading", JSONObject(update.body).getString("update"))
         assertEquals(listOf("settings", "release", "update"), admin.calls)
         assertEquals(405, call("GET", "/api/admin/update").status)
+    }
+
+    @Test fun qrSwitch() {
+        assertFalse(JSONObject(call("GET", "/api/status").body).getBoolean("qrScanning"))
+        val on = call("POST", "/api/admin/qr", """{"on":true}""")
+        assertEquals(200, on.status)
+        assertTrue(player.qrScanning)
+        assertTrue(JSONObject(on.body).getBoolean("qrScanning"))
+        assertEquals(200, call("POST", "/api/admin/qr", """{"on":false}""").status)
+        assertFalse(player.qrScanning)
+        assertEquals(400, call("POST", "/api/admin/qr", """{"on":"yes"}""").status)
+        assertEquals(400, call("POST", "/api/admin/qr").status)
+        assertEquals(401, call("POST", "/api/admin/qr", """{"on":true}""", auth = null).status)
+        assertFalse(player.qrScanning)
     }
 
     @Test fun updateNeedsDeviceOwner() {

@@ -174,6 +174,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     fun stepVolume(step: Int) = launchCommand { stepVolume(step) }
 
     // Parent tools
+    fun setQrScanning(on: Boolean) = launchCommand { setQrScanning(on) }
     fun openSettingsOnPlayer() = launchCommand { openSettings() }
     fun releasePlayer() = launchCommand { release() }
     fun updatePlayer() = launchCommand { update() }

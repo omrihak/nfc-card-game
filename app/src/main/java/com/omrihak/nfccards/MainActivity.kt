@@ -44,6 +44,7 @@ import com.omrihak.nfccards.ui.CameraBubble
 import com.omrihak.nfccards.ui.GameScreen
 import com.omrihak.nfccards.ui.IdleScreen
 import com.omrihak.nfccards.ui.VideoScreen
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -62,8 +63,12 @@ class MainActivity : ComponentActivity() {
     private var dimmed by mutableStateOf(false)
     private var lastBusyAt = SystemClock.elapsedRealtime()
 
+    /** Before any companion is paired, a touch turns QR scanning on for a while; see [onUserInteraction]. */
+    private var qrWindow: Job? = null
+    private var resumed = false
+
     private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) qrScanner.start() else Log.w(TAG, "Camera permission denied; QR scanning off")
+        if (granted) updateCamera() else Log.w(TAG, "Camera permission denied; QR scanning off")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,6 +93,11 @@ class MainActivity : ComponentActivity() {
 
         setContent { App(viewModel, qrScanner, dimmed) }
         watchIdle()
+
+        // The companion app's QR / NFC switch.
+        lifecycleScope.launch {
+            viewModel.qrScanningState.collect { updateCamera() }
+        }
 
         // The companion app's "Open settings" / "Remove kiosk": same as the admin cards.
         lifecycleScope.launch {
@@ -132,6 +142,8 @@ class MainActivity : ComponentActivity() {
         super.onUserInteraction()
         lastBusyAt = SystemClock.elapsedRealtime()
         if (sleeping) wake()
+        // So the very first companion can pair with its QR code. Once paired, it switches QR on itself.
+        if (!viewModel.isPaired()) openQrWindow()
     }
 
     /**
@@ -156,7 +168,8 @@ class MainActivity : ComponentActivity() {
 
     private fun sleep() {
         sleeping = true
-        qrScanner.stop()
+        closeQrWindow()
+        updateCamera()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         kiosk.sleepScreen()
         applyDimmed(true) // black and dark right away, even if the screen then stays on until its timeout
@@ -175,7 +188,7 @@ class MainActivity : ComponentActivity() {
         applyDimmed(false)
         kiosk.enter() // puts "stay on while charging" back
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        startQrScanner()
+        updateCamera()
     }
 
     override fun onResume() {
@@ -183,11 +196,14 @@ class MainActivity : ComponentActivity() {
         if (sleeping) wake() else lastBusyAt = SystemClock.elapsedRealtime()
         kiosk.enter()
         nfcReader.start()
-        startQrScanner()
+        resumed = true
+        updateCamera()
     }
 
     override fun onPause() {
         nfcReader.stop()
+        resumed = false
+        updateCamera()
         super.onPause()
     }
 
@@ -199,6 +215,31 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         qrScanner.release()
         super.onDestroy()
+    }
+
+    /**
+     * The camera is only on when the companion switched QR scanning on (or briefly, before any
+     * companion is paired). While the camera is open, some phones (Samsung: "Notify nfc service :
+     * camera open ... polling(false)") stop polling for NFC tags: cards then do nothing.
+     */
+    private fun updateCamera() {
+        val on = resumed && !sleeping && (viewModel.qrScanningState.value || qrWindow != null)
+        if (on) startQrScanner() else qrScanner.stop()
+    }
+
+    private fun openQrWindow() {
+        qrWindow?.cancel()
+        qrWindow = lifecycleScope.launch {
+            delay(QR_WINDOW_MS)
+            qrWindow = null
+            updateCamera()
+        }
+        updateCamera()
+    }
+
+    private fun closeQrWindow() {
+        qrWindow?.cancel()
+        qrWindow = null
     }
 
     /** In kiosk mode the permission is granted by [Kiosk.enter]; otherwise ask once. */
@@ -223,6 +264,7 @@ class MainActivity : ComponentActivity() {
         const val TAG = "MainActivity"
         const val IDLE_SLEEP_MS = 60_000L
         const val IDLE_CHECK_MS = 2_000L
+        const val QR_WINDOW_MS = 30_000L
     }
 
     private fun hideSystemBars() {

@@ -91,6 +91,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
     private val _stars = MutableStateFlow(prefs.getInt(KEY_STARS, 0))
     val stars: StateFlow<Int> = _stars.asStateFlow()
 
+    /** QR scanning on (camera on) instead of NFC; set from the companion app. See [setQrScanning]. */
+    private val _qrScanning = MutableStateFlow(prefs.getBoolean(KEY_QR, false))
+    val qrScanningState: StateFlow<Boolean> = _qrScanning.asStateFlow()
+
     // ---- Games ----
     private val speaker = TextToSpeechSpeaker(app)
     private var gameSession: GameSession? = null
@@ -143,6 +147,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
 
     private val pairing = Pairing(app)
     private val remote = Remote(app, this, pairing, { _adminCards.tryEmit(it) }, viewModelScope).also { it.start() }
+
+    /** True once any companion app is paired, so it can switch QR scanning on when it is needed. */
+    fun isPaired(): Boolean = pairing.tokens.isNotEmpty()
 
     /** A pairing card (`tapandplay://pair?token=...`) lets a companion app in. False for any other card. Main thread. */
     fun onPairingCard(uri: String): Boolean {
@@ -272,6 +279,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
         handleScan(cardUrl)
     }
 
+    override val qrScanning: Boolean get() = _qrScanning.value
+
+    override fun setQrScanning(on: Boolean) {
+        Log.i(TAG, if (on) "QR scanning on (NFC may stop working on this phone)" else "QR scanning off: NFC cards")
+        _qrScanning.value = on
+        prefs.edit().putBoolean(KEY_QR, on).apply()
+    }
+
     override fun pause() = player.pause()
 
     override fun resume() = player.resume()
@@ -363,6 +378,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), RemoteApi.Player 
     private companion object {
         const val TAG = "MainViewModel"
         const val KEY_STARS = "stars"
+        const val KEY_QR = "qr_scanning"
         const val WORD_PAUSE_MILLIS = 500L
     }
 }

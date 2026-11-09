@@ -213,6 +213,7 @@ private fun CompanionApp(
                 onVolumeStep = remote::stepVolume,
                 onPlay = playCard,
                 onConnectManually = remote::connectManually,
+                onQrScanning = remote::setQrScanning,
                 onOpenSettings = remote::openSettingsOnPlayer,
                 onUpdate = remote::updatePlayer,
                 onRelease = remote::releasePlayer,

@@ -16,6 +16,8 @@ import org.json.JSONObject
  *   POST /api/stop                     stops and goes back to the idle screen
  *   POST /api/volume  {"level": 7}     sets the media volume (0..maxVolume)
  *                     {"step": 1}      or moves it up (1) or down (-1)
+ *   POST /api/admin/qr  {"on": true}   QR scanning with the front camera on (true) or off (false, the
+ *                                      default). Some phones (Samsung) read no NFC cards while the camera is on.
  *   POST /api/admin/settings           like the settings admin card: leaves kiosk, opens Settings
  *   POST /api/admin/release            like the release admin card: gives up device owner for good
  *   POST /api/admin/update             downloads and installs the latest player in the background
@@ -38,6 +40,10 @@ class RemoteApi(
         fun pause()
         fun resume()
         fun stop()
+
+        /** QR scanning instead of NFC cards (see /api/admin/qr). Kept across restarts. */
+        val qrScanning: Boolean get() = false
+        fun setQrScanning(on: Boolean) = Unit
     }
 
     interface Volume {
@@ -98,6 +104,10 @@ class RemoteApi(
                 }
                 volume.set(level.coerceIn(0, volume.max))
             }
+            "/api/admin/qr" -> {
+                if (body.opt("on") !is Boolean) return HttpResponse.error(400, "Give \"on\": true or false")
+                player.setQrScanning(body.getBoolean("on"))
+            }
             "/api/admin/settings" -> admin.openSettings()
             "/api/admin/release" -> admin.release()
             "/api/admin/update" -> if (!admin.update()) {
@@ -116,6 +126,7 @@ class RemoteApi(
         put("paired", true)
         put("volume", volume.level)
         put("maxVolume", volume.max)
+        put("qrScanning", player.qrScanning)
         put("version", admin.version)
         put("deviceOwner", admin.isDeviceOwner)
         admin.batteryPercent?.let { put("battery", it) }
@@ -144,6 +155,7 @@ class RemoteApi(
             "/api/resume" to "POST",
             "/api/stop" to "POST",
             "/api/volume" to "POST",
+            "/api/admin/qr" to "POST",
             "/api/admin/settings" to "POST",
             "/api/admin/release" to "POST",
             "/api/admin/update" to "POST",
