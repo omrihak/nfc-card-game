@@ -354,7 +354,7 @@ build and set it up again. Same for the companion (uninstall, reinstall).
 ## Layout
 
 ```
-nfc/NfcReader            read-only NDEF URI reader (foreground dispatch)
+nfc/NfcReader            read-only NDEF URI reader (reader mode)
 qr/QrScanner             front-camera QR reader (CameraX + ZXing)
 content/ContentMetadata  parses content.json leniently
 content/GoogleDriveUrlResolver

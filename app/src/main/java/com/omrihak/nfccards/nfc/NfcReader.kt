@@ -1,7 +1,6 @@
 package com.omrihak.nfccards.nfc
 
 import android.app.Activity
-import android.app.PendingIntent
 import android.content.Intent
 import android.nfc.NdefMessage
 import android.nfc.NfcAdapter
@@ -12,12 +11,12 @@ import android.os.Parcelable
 import android.util.Log
 
 /**
- * Read-only NFC. While the activity is in the foreground, every tag is sent to it (foreground
- * dispatch): Android reads the tag and delivers it to the activity's onNewIntent, which passes it
- * to [handle]. This is the same path that opens the app from a tap when it is closed.
+ * Read-only NFC. Uses reader mode while the activity is in the foreground: cards are read without
+ * the system's tag dispatch, chooser dialogs, or the tag sound. A tap that launches the app while it
+ * is closed comes as an intent instead; the activity passes it to [handle].
  *
- * (It used reader mode before. On some phones reader mode never saw a card while the app was
- * open, though the same card read fine from Settings through the system dispatch.)
+ * Some phones (Samsung) don't poll for tags at all while a camera is open: see MainActivity's
+ * QR scanning switch.
  *
  * Only emits the URI found on the card (or null for a card that has no NDEF URI).
  * It knows nothing about what the URI means.
@@ -25,7 +24,7 @@ import android.util.Log
 class NfcReader(
     private val activity: Activity,
     private val onCard: (uri: String?) -> Unit,
-) {
+) : NfcAdapter.ReaderCallback {
 
     private val adapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(activity)
 
@@ -36,13 +35,15 @@ class NfcReader(
             a == null -> { Log.e(TAG, "This device has no NFC"); return }
             !a.isEnabled -> Log.e(TAG, "NFC is turned off in system settings")
         }
-        val intent = Intent(activity, activity.javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        // Mutable: Android fills in the tag extras.
-        val flags = if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
-        val pending = PendingIntent.getActivity(activity, 0, intent, flags)
         try {
-            // No filters: every tag comes here while the app is open.
-            a!!.enableForegroundDispatch(activity, pending, null, null)
+            a!!.enableReaderMode(
+                activity,
+                this,
+                NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or
+                    NfcAdapter.FLAG_READER_NFC_F or NfcAdapter.FLAG_READER_NFC_V or
+                    NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
+                null,
+            )
             Log.i(TAG, "Listening for cards")
         } catch (e: Exception) {
             Log.e(TAG, "Could not start NFC", e)
@@ -52,13 +53,30 @@ class NfcReader(
     /** Call from onPause. */
     fun stop() {
         try {
-            adapter?.disableForegroundDispatch(activity)
+            adapter?.disableReaderMode(activity)
         } catch (e: Exception) {
             Log.w(TAG, "Could not stop NFC", e)
         }
     }
 
-    /** A tag intent (from the foreground dispatch, or one that launched the app): emits its URI. Returns false for any other intent. */
+    /** Reader mode: called on a binder thread. */
+    override fun onTagDiscovered(tag: Tag) {
+        val uri = try {
+            Ndef.get(tag)?.let { ndef -> uriFrom(ndef.cachedNdefMessage ?: readMessage(ndef)) }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not read tag", e)
+            null
+        }
+        Log.i(TAG, "Tag ${tag.id.joinToString("") { "%02x".format(it) }} -> ${uri ?: "(no NDEF URI)"}")
+        activity.runOnUiThread { onCard(uri) }
+    }
+
+    private fun readMessage(ndef: Ndef): NdefMessage? = ndef.use {
+        it.connect()
+        it.ndefMessage
+    }
+
+    /** A tag intent (one that launched the app, or came while it was opening): emits its URI. Returns false for any other intent. */
     fun handle(intent: Intent): Boolean {
         if (intent.action !in TAG_ACTIONS) return false
         val uri = try {
