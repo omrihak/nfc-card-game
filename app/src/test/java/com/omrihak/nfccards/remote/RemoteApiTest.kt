@@ -17,8 +17,9 @@ class RemoteApiTest {
         override fun pause() { calls += "pause" }
         override fun resume() { calls += "resume" }
         override fun stop() { calls += "stop" }
-        override var qrScanning = false
-        override fun setQrScanning(on: Boolean) { qrScanning = on }
+        var qr = false
+        override val qrScanning get() = qr
+        override fun setQrScanning(on: Boolean) { qr = on }
     }
 
     private class FakeVolume : RemoteApi.Volume {
